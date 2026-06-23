@@ -16,12 +16,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from typing import Any, Optional
+from typing import Optional
 
 try:
     from nacl.signing import SigningKey, VerifyKey
     from nacl.exceptions import BadSignatureError
-except Exception as _exc:  # pragma: no cover - import guard
+except Exception:  # pragma: no cover - import guard
     SigningKey = VerifyKey = None  # type: ignore
     BadSignatureError = Exception  # type: ignore
 
