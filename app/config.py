@@ -6,7 +6,7 @@ import os
 
 class Settings:
     # Storage
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./netplex_support.db")
+    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./netplex_support.db")
     OBJECT_STORE_URL: str = os.environ.get("OBJECT_STORE_URL", "")  # S3-compatible; blobs only
 
     # GitHub mirror (work surface, not source of truth)
@@ -21,6 +21,7 @@ class Settings:
 
     # Intake limits (anti-abuse)
     INTAKE_RATE_PER_MIN: int = int(os.environ.get("INTAKE_RATE_PER_MIN", "30"))
+    WEB_INTAKE_RATE_PER_MIN: int = int(os.environ.get("WEB_INTAKE_RATE_PER_MIN", "10"))
     MAX_BLOB_BYTES: int = int(os.environ.get("MAX_BLOB_BYTES", str(5 * 1024 * 1024)))
 
 

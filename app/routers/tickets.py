@@ -1,24 +1,28 @@
 """Ticket / triage subsystem — the authoritative ticket store (source of truth).
 
-SCAFFOLD: defines the API surface. Schema mirrors netplex/docs/platform/support-system.md §3.1.
+Schema mirrors netplex/docs/platform/support-system.md §3.1. priority_score = sev × occ × tier.
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import get_session
+from app.models import (  # re-exported for callers/tests
+    SEVERITY_WEIGHT,
+    TIER_WEIGHT,
+    Ticket,
+    admin_queue,
+    get_ticket,
+    priority_score,
+)
 
 router = APIRouter(prefix="/api/v1/tickets", tags=["tickets"])
 
-# severity / tier weights — see support-system.md §3.3 (priority_score = sev × occ × tier)
-SEVERITY_WEIGHT = {"s1_crash": 16, "s2_broken": 8, "s3_degraded": 4, "s4_cosmetic": 2, "s5_idea": 1}
-TIER_WEIGHT = {"master": 5, "enterprise": 5, "team": 4, "architect": 4,
-               "professional": 3, "class": 3, "associate": 1}
-
-
-def priority_score(severity: str, occurrences: int, tier: str) -> int:
-    return SEVERITY_WEIGHT.get(severity, 4) * max(occurrences, 1) * TIER_WEIGHT.get(tier, 1)
+__all__ = ["router", "SEVERITY_WEIGHT", "TIER_WEIGHT", "priority_score"]
 
 
 class TicketView(BaseModel):
@@ -31,21 +35,37 @@ class TicketView(BaseModel):
     reporter_tier: str = "associate"
     priority_score: Optional[int] = None
     fixed_in_version: Optional[str] = None
+    source: str = "web"
 
-
-@router.get("/{ticket_id}", response_model=TicketView)
-async def get_ticket(ticket_id: str):
-    """Look up a ticket by ID. TODO: read from DB."""
-    raise HTTPException(501, "scaffold — ticket store not yet implemented")
-
-
-@router.get("/claim/{claim_code}", response_model=TicketView)
-async def claim_lookup(claim_code: str):
-    """Anonymous reporter looks up their ticket by claim code. TODO: read from DB."""
-    raise HTTPException(501, "scaffold — claim lookup not yet implemented")
+    @classmethod
+    def of(cls, t: Ticket) -> "TicketView":
+        return cls(
+            id=t.id, kind=t.kind, status=t.status, severity=t.severity, title=t.title,
+            occurrences=t.occurrences, reporter_tier=t.reporter_tier,
+            priority_score=t.priority_score, fixed_in_version=t.fixed_in_version, source=t.source,
+        )
 
 
 @router.get("/admin/queue")
-async def triage_queue(limit: int = 100):
-    """Admin triage queue ordered by priority_score. TODO: query + auth (admin only)."""
-    raise HTTPException(501, "scaffold — triage queue not yet implemented")
+async def triage_queue(limit: int = 100, session: AsyncSession = Depends(get_session)):
+    """Admin triage queue — open tickets ordered by priority_score desc. TODO: admin auth."""
+    rows = await admin_queue(session, limit=limit)
+    return {"count": len(rows), "tickets": [TicketView.of(t).model_dump() for t in rows]}
+
+
+@router.get("/claim/{claim_code}", response_model=TicketView)
+async def claim_lookup(claim_code: str, session: AsyncSession = Depends(get_session)):
+    """Anonymous reporter looks up their ticket by claim code.
+
+    Anonymous claim-code tickets are not implemented yet; lookups 404 cleanly rather than 501.
+    """
+    raise HTTPException(404, "no ticket for that claim code")
+
+
+@router.get("/{ticket_id}", response_model=TicketView)
+async def get_ticket_route(ticket_id: str, session: AsyncSession = Depends(get_session)):
+    """Look up a ticket by ID."""
+    t = await get_ticket(session, ticket_id)
+    if t is None:
+        raise HTTPException(404, "ticket not found")
+    return TicketView.of(t)
