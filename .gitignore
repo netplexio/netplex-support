@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+*.sqlite3
+.env
+# NEVER commit keys or blobs
+*.pem
+*.key
+secrets/
+blobs/
+.DS_Store
