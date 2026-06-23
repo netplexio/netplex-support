@@ -20,6 +20,24 @@ server, never on a shared host, never in CI.
 - A **test/dev keypair** may exist in the repo for tests ONLY, clearly marked non-production, and
   must never be added to a box's real trust store.
 
+## ⏸ OUTSTANDING — deferred, NOT ready to build (recorded 2026-06-23)
+
+These need the **production offline keypair to exist first** (Khaled generates it on an offline
+machine via `tools/gen_keypair.py`), so they are deliberately not built yet:
+
+1. **Bake the public key + trust store into the product** — ship `{active, next}` public keys in
+   the install image; the box's update agent verifies manifests against it (`app/crypto` verify
+   lib is ready and tested).
+2. **Manifest `schema_version` negotiation** — box advertises agent version + supported range;
+   central serves the oldest compatible schema.
+3. **Release/distribution endpoints** (`app/routers/releases.py` still 501) — build manifest
+   signing pipeline (offline), registry publish, offline-bundle emitter — once a real key exists.
+4. **Update agent + `netplexctl`** in the product — compose two-phase self-update, rollback.
+5. **License issuance** (`/license/issue`) — needs the offline license key (custody same as signing).
+
+The crypto **primitives** (sign/verify, key-id, dual-trust, revocation) and the **offline tools**
+ARE built + tested (master 7fdb908). What's missing is the real key + the integration above.
+
 ## Still tracked (operational/policy, not blockers)
 User notifications · data retention/deletion · client crash-flood guard · support observability ·
 responsible-disclosure policy · known-issues surface · staged-rollout % · first-run consent.
