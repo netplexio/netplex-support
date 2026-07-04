@@ -13,3 +13,5 @@ venv/
 secrets/
 blobs/
 .DS_Store
+cases/
+*.enc

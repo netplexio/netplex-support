@@ -20,8 +20,9 @@ import os
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-# Keep in lock-step with backend/shared/integrity.py::_KERNEL_FILES.
-KERNEL_FILES = ("license_verify.py", "entitlements.py", "integrity.py")
+# Keep in lock-step with backend/shared/integrity.py::_KERNEL_MODULES. Resolve .so (protected build)
+# or .py (plaintext) per module so the signed manifest matches whatever the box actually ships.
+KERNEL_MODULES = ("license_verify", "entitlements", "integrity")
 
 
 def canonical_bytes(m: dict) -> bytes:
@@ -37,9 +38,11 @@ def main() -> None:
     args = ap.parse_args()
 
     files = {}
-    for name in KERNEL_FILES:
-        with open(os.path.join(args.shared, name), "rb") as f:
-            files[name] = hashlib.sha256(f.read()).hexdigest()
+    for base in KERNEL_MODULES:
+        so_p, py_p = os.path.join(args.shared, base + ".so"), os.path.join(args.shared, base + ".py")
+        p = so_p if os.path.exists(so_p) else py_p  # .so (protected) preferred, matching the box
+        with open(p, "rb") as f:
+            files[os.path.basename(p)] = hashlib.sha256(f.read()).hexdigest()
 
     seed = base64.b64decode(open(args.key).read().strip())
     sk = Ed25519PrivateKey.from_private_bytes(seed)
