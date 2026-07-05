@@ -71,6 +71,22 @@ def main() -> None:
     now = int(args.now if args.now is not None else time.time())
     expires_at = None if args.perpetual else now + args.days * 86400
 
+    # §11.9 policy guard (Khaled 2026-07-06): hardware-lock ONLY Enterprise / Architect-perpetual.
+    # Binding a mid-tier token to a fingerprint would demote honest customers who legitimately migrate
+    # VMs (node-lock enforcement compares the bound fp against the box's hardware; a moved VM mismatches
+    # → free). Refuse a real bind (a fingerprint that isn't "any", not a floating token) for any tier
+    # outside the policy, so staff can't mis-issue. Use --allow-floating or --machine any for the rest.
+    _tier = args.tier.lower()
+    _real_bind = args.machine and args.machine != "any" and not args.allow_floating
+    _LOCKABLE = {"enterprise", "architect", "master"}
+    if _real_bind:
+        if _tier not in _LOCKABLE:
+            sys.exit(f"refusing to hardware-lock a '{_tier}' token: policy binds only "
+                     f"{sorted(_LOCKABLE)} (§11.9). Use --machine any or --allow-floating for this tier.")
+        if _tier == "architect" and not args.perpetual:
+            sys.exit("refusing to hardware-lock a SUBSCRIPTION 'architect' token: only Architect-"
+                     "PERPETUAL is node-locked (§11.4). Add --perpetual, or use --machine any.")
+
     entitlements = {}
     if args.entitlements:
         entitlements = json.load(open(args.entitlements))
