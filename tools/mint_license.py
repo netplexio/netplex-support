@@ -47,7 +47,12 @@ def main() -> None:
     ap.add_argument("--buyer-id", required=True, help="buyer/customer id (attribution — leg ④)")
     ap.add_argument("--customer-ref", default=None, help="defaults to --buyer-id")
     ap.add_argument("--license-id", default=None, help="defaults to lic-<8 hex of buyer_id>")
-    ap.add_argument("--machine", default="any", help="'any' or a machine fingerprint (soft-bind)")
+    ap.add_argument("--machine", default="any",
+                    help="'any' or a machine HARDWARE fingerprint (node-lock; §11.10.4). Use the box's "
+                         "get_hardware_fingerprint() / the air-gap request bundle's 'fingerprint'.")
+    ap.add_argument("--allow-floating", action="store_true",
+                    help="signed permission for a node-locked token to run on ANY box (CI/eval). Only "
+                         "honoured because it is inside the signature — an env var can't set it.")
     ap.add_argument("--entitlements", default=None, help="path to a JSON caps dict (signed caps — leg ②)")
     grp = ap.add_mutually_exclusive_group()
     grp.add_argument("--days", type=int, default=365, help="validity in days")
@@ -84,6 +89,8 @@ def main() -> None:
         "issued_at": now,
         "expires_at": expires_at,
     }
+    if args.allow_floating:
+        claims["allow_floating"] = True
     claims["signature"] = {
         "alg": "ed25519",
         "key_id": key_id,
