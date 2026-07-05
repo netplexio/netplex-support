@@ -50,7 +50,7 @@ TRUST = [
 # is a tracer, not a lock. Bake the stamp public key here once tools/gen_keypair.py mints it, and/or
 # pass at runtime via --stamp-pubkey / NETPLEX_STAMP_PUBKEYS (comma-separated b64).
 STAMP_TRUST: list[str] = [
-    # "<stamp-2026.pub b64>",
+    "8irQIlrwhR5/1JmDqI9SFD/XJBLUt3mX5BvoNZLHS9s=",  # netplex-stamp-2026 (private seed in offline custody)
 ]
 
 STAMP_TYPE = "netplex-download-stamp"
