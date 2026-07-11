@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import pytest
+from tests.conftest import FORWARD_HEADERS
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_get_ticket_roundtrip_and_404(client):
     c, _ = client
-    r = await c.post("/api/v1/diagnostics/forward", json={"title": "t", "severity": "s2_broken"})
+    r = await c.post("/api/v1/diagnostics/forward", json={"title": "t", "severity": "s2_broken"}, headers=FORWARD_HEADERS)
     tid = r.json()["ticket_id"]
 
     got = await c.get(f"/api/v1/tickets/{tid}")
@@ -30,11 +31,11 @@ async def test_admin_queue_ordered_by_priority(client):
     # low: s4 cosmetic, associate → 2 × 1 × 1 = 2
     await c.post("/api/v1/diagnostics/forward", json={
         "fingerprint": "low", "title": "nit", "severity": "s4_cosmetic", "reporter_tier": "associate",
-    })
+    }, headers=FORWARD_HEADERS)
     # high: s1 crash, architect → 16 × 1 × 4 = 64
     await c.post("/api/v1/diagnostics/forward", json={
         "fingerprint": "high", "title": "crash", "severity": "s1_crash", "reporter_tier": "architect",
-    })
+    }, headers=FORWARD_HEADERS)
     q = await c.get("/api/v1/tickets/admin/queue")
     tickets = q.json()["tickets"]
     assert q.json()["count"] == 2
