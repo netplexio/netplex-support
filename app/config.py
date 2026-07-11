@@ -24,5 +24,12 @@ class Settings:
     WEB_INTAKE_RATE_PER_MIN: int = int(os.environ.get("WEB_INTAKE_RATE_PER_MIN", "10"))
     MAX_BLOB_BYTES: int = int(os.environ.get("MAX_BLOB_BYTES", str(5 * 1024 * 1024)))
 
+    # Machine-to-machine intake auth for /diagnostics/forward. A netplex box must
+    # present `Authorization: Bearer <token>` matching this. UNSET ⇒ /forward is
+    # DISABLED (fail-closed) so an open, unauthenticated ingest can never accept junk
+    # (the box-forward hop was previously unauthenticated). Comma-separated allows
+    # rotating tokens (old+new valid during a rollover).
+    FORWARD_INTAKE_TOKENS: str = os.environ.get("FORWARD_INTAKE_TOKENS", "")
+
 
 settings = Settings()
