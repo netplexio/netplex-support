@@ -9,11 +9,12 @@ defence in depth. Email intake is a marked stub (no real inbox poller here).
 """
 from __future__ import annotations
 
+import hmac
 import time
 from collections import defaultdict, deque
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,19 @@ from app.db import get_session
 from app.models import create_or_dedupe
 
 router = APIRouter(prefix="/api/v1/diagnostics", tags=["diagnostics"])
+
+
+def _require_forward_auth(request: Request) -> None:
+    """Machine-to-machine auth for /forward. Fail-CLOSED: if no token is configured,
+    the endpoint is disabled entirely (503) rather than accepting anonymous forwards.
+    Constant-time compare against any of the configured (comma-separated) tokens."""
+    configured = [t.strip() for t in settings.FORWARD_INTAKE_TOKENS.split(",") if t.strip()]
+    if not configured:
+        raise HTTPException(503, "forward intake is not configured on this server")
+    auth = request.headers.get("authorization", "")
+    presented = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not presented or not any(hmac.compare_digest(presented, t) for t in configured):
+        raise HTTPException(401, "invalid or missing intake token")
 
 
 class ForwardedReport(BaseModel):
@@ -67,9 +81,17 @@ def _rate_ok(client_ip: str, limit: int) -> bool:
 
 @router.post("/forward", status_code=202)
 async def receive_forwarded(
-    report: ForwardedReport, session: AsyncSession = Depends(get_session)
+    report: ForwardedReport, request: Request, session: AsyncSession = Depends(get_session)
 ):
-    """Accept a forwarded, already-redacted report → create/dedupe a ticket (source=forward)."""
+    """Accept a forwarded, already-redacted report → create/dedupe a ticket (source=forward).
+
+    Authenticated (Bearer token, fail-closed) and rate-limited PER INSTALL so one box
+    can't hammer the intake - closes the 2026-07-11 gap where this hop had neither."""
+    _require_forward_auth(request)
+    # Rate-limit by install_id (falls back to client IP) using the intake budget.
+    key = f"fwd:{report.install_id or (request.client.host if request.client else 'unknown')}"
+    if not _rate_ok(key, max(int(getattr(settings, "INTAKE_RATE_PER_MIN", 30)), 1)):
+        raise HTTPException(429, "forward rate limit exceeded - back off")
     ticket = await create_or_dedupe(
         session,
         kind=report.kind,
@@ -100,8 +122,6 @@ async def receive_web(
     client_ip = request.client.host if request.client else "unknown"
     limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
     if not _rate_ok(client_ip, limit):
-        from fastapi import HTTPException
-
         raise HTTPException(429, "rate limit exceeded — slow down")
 
     ticket = await create_or_dedupe(
