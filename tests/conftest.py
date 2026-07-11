@@ -55,3 +55,19 @@ def reset_rate_limit():
     diagnostics._hits.clear()
     yield
     diagnostics._hits.clear()
+
+
+# /diagnostics/forward is authenticated (fail-closed). Configure a known token for
+# every test by default so existing forward tests work; auth tests override it.
+TEST_FORWARD_TOKEN = "test-fwd-token"
+FORWARD_HEADERS = {"Authorization": f"Bearer {TEST_FORWARD_TOKEN}"}
+
+
+@pytest.fixture(autouse=True)
+def _configure_forward_token():
+    from app.config import settings
+
+    prev = settings.FORWARD_INTAKE_TOKENS
+    settings.FORWARD_INTAKE_TOKENS = TEST_FORWARD_TOKEN
+    yield
+    settings.FORWARD_INTAKE_TOKENS = prev

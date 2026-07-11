@@ -8,6 +8,7 @@ contract end-to-end. Skips cleanly if the product repo isn't checked out alongsi
 import sys
 
 import pytest
+from tests.conftest import FORWARD_HEADERS
 
 # Locate the product's payload builder; skip if the product repo isn't present.
 _GW = "/root/netplex/backend/api-gateway"
@@ -28,7 +29,7 @@ async def test_product_payload_is_accepted_and_creates_ticket(client):
     }
     payload = forward_payload(product_ticket)
 
-    res = await c.post("/api/v1/diagnostics/forward", json=payload)
+    res = await c.post("/api/v1/diagnostics/forward", json=payload, headers=FORWARD_HEADERS)
     assert res.status_code == 202, res.text
     tid = res.json()["ticket_id"]
     assert tid.startswith("NPX-")
@@ -40,6 +41,6 @@ async def test_product_payload_is_accepted_and_creates_ticket(client):
     assert "user@example.com" not in str(body) and "u-secret" not in str(body)
 
     # same fingerprint again → dedupe (occurrences grows, same id)
-    res2 = await c.post("/api/v1/diagnostics/forward", json=payload)
+    res2 = await c.post("/api/v1/diagnostics/forward", json=payload, headers=FORWARD_HEADERS)
     assert res2.json()["ticket_id"] == tid
     assert res2.json()["occurrences"] == 2

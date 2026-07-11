@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.conftest import FORWARD_HEADERS
 
 pytestmark = pytest.mark.asyncio
 
@@ -11,7 +12,7 @@ async def test_forward_creates_ticket(client):
     r = await c.post("/api/v1/diagnostics/forward", json={
         "kind": "crash", "fingerprint": "fp-abc", "title": "boom",
         "severity": "s1_crash", "reporter_tier": "architect",
-    })
+    }, headers=FORWARD_HEADERS)
     assert r.status_code == 202
     body = r.json()
     assert body["accepted"] is True
@@ -25,10 +26,10 @@ async def test_forward_same_fingerprint_dedupes(client):
     c, _ = client
     r1 = await c.post("/api/v1/diagnostics/forward", json={
         "fingerprint": "dup-1", "title": "x", "severity": "s2_broken",
-    })
+    }, headers=FORWARD_HEADERS)
     r2 = await c.post("/api/v1/diagnostics/forward", json={
         "fingerprint": "dup-1", "title": "x again", "severity": "s2_broken",
-    })
+    }, headers=FORWARD_HEADERS)
     assert r1.json()["ticket_id"] == r2.json()["ticket_id"]
     assert r2.json()["occurrences"] == 2
 
