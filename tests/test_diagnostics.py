@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from tests.conftest import FORWARD_HEADERS
+from tests.conftest import ADMIN_HEADERS, FORWARD_HEADERS
 
 pytestmark = pytest.mark.asyncio
 
@@ -34,7 +34,7 @@ async def test_forward_same_fingerprint_dedupes(client):
     assert r2.json()["occurrences"] == 2
 
     # only one row in the admin queue for that fingerprint
-    q = await c.get("/api/v1/tickets/admin/queue")
+    q = await c.get("/api/v1/tickets/admin/queue", headers=ADMIN_HEADERS)
     ids = [t["id"] for t in q.json()["tickets"]]
     assert ids.count(r1.json()["ticket_id"]) == 1
     assert q.json()["count"] == 1

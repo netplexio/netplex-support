@@ -62,6 +62,10 @@ def reset_rate_limit():
 TEST_FORWARD_TOKEN = "test-fwd-token"
 FORWARD_HEADERS = {"Authorization": f"Bearer {TEST_FORWARD_TOKEN}"}
 
+# /tickets/admin/* is operator-only (fail-closed on ADMIN_API_TOKENS). Same pattern.
+TEST_ADMIN_TOKEN = "test-admin-token"
+ADMIN_HEADERS = {"Authorization": f"Bearer {TEST_ADMIN_TOKEN}"}
+
 
 @pytest.fixture(autouse=True)
 def _configure_forward_token():
@@ -71,3 +75,13 @@ def _configure_forward_token():
     settings.FORWARD_INTAKE_TOKENS = TEST_FORWARD_TOKEN
     yield
     settings.FORWARD_INTAKE_TOKENS = prev
+
+
+@pytest.fixture(autouse=True)
+def _configure_admin_token():
+    from app.config import settings
+
+    prev = settings.ADMIN_API_TOKENS
+    settings.ADMIN_API_TOKENS = TEST_ADMIN_TOKEN
+    yield
+    settings.ADMIN_API_TOKENS = prev
