@@ -30,8 +30,13 @@ def priority_score(severity: str, occurrences: int, tier: str) -> int:
 
 
 def new_ticket_id() -> str:
-    """Format 'NPX-XXXXXX' (6 uppercase hex chars)."""
-    return "NPX-" + secrets.token_hex(3).upper()
+    """Format 'NPX-XXXXXXXXXXXX' (12 uppercase hex chars = 48 bits).
+
+    Widened from 24 bits (F-S3): 24 bits is both a collision risk (birthday bound ~4k
+    tickets) and small enough to enumerate against the unauthenticated GET /tickets/{id}.
+    48 bits (still within the String(16) id column: 'NPX-' + 12 = 16) makes both
+    infeasible."""
+    return "NPX-" + secrets.token_hex(6).upper()
 
 
 def _utcnow() -> datetime:
