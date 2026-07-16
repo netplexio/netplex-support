@@ -8,7 +8,8 @@
 # final step, done only AFTER you've confirmed the passphrase is recorded and the bundle restores.
 #
 # Usage:   escrow_keys.sh <keydir> <out.enc>
-# Restore: openssl enc -d -aes-256-cbc -pbkdf2 -in <out.enc> -pass pass:'<passphrase>' | tar xz
+# Restore: export NPX_ESCROW_PASS='<passphrase>'   # keep it out of the shell history/argv
+#          openssl enc -d -aes-256-cbc -pbkdf2 -in <out.enc> -pass env:NPX_ESCROW_PASS | tar xz
 set -euo pipefail
 
 KEYDIR="${1:?usage: escrow_keys.sh <keydir> <out.enc>}"
@@ -35,15 +36,18 @@ PY
   done
 } > "$RECORD"
 
-# Strong one-time passphrase (printed once; never stored on disk).
+# Strong one-time passphrase (printed once; never stored on disk). Passed to openssl via
+# an ENV var, never `-pass pass:` on the command line — argv is world-readable (ps /
+# /proc/<pid>/cmdline), so `pass:` would leak the passphrase to any local user (F-S5).
 PASS="$(openssl rand -base64 32)"
+export NPX_ESCROW_PASS="$PASS"
 
 # Encrypt a gzipped tar of the seeds + pubs + record.
 tar -C "$KEYDIR" -czf - $(cd "$KEYDIR" && ls *.key *.pub 2>/dev/null) \
-  | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:$PASS" -out "$OUT"
+  | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:NPX_ESCROW_PASS -out "$OUT"
 
 # Verify the bundle decrypts + lists the seeds (round-trip) before we trust it.
-if openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$PASS" -in "$OUT" | tar tz >/dev/null 2>&1; then
+if openssl enc -d -aes-256-cbc -pbkdf2 -pass env:NPX_ESCROW_PASS -in "$OUT" | tar tz >/dev/null 2>&1; then
   echo "escrow bundle verified (decrypts + lists cleanly)."
 else
   echo "ERROR: escrow bundle failed to round-trip — NOT safe to rely on. Investigate."; exit 1
