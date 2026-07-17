@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import require_admin
 from app.db import get_session
 from app.models import (  # re-exported for callers/tests
     SEVERITY_WEIGHT,
@@ -46,9 +47,12 @@ class TicketView(BaseModel):
         )
 
 
-@router.get("/admin/queue")
+@router.get("/admin/queue", dependencies=[Depends(require_admin)])
 async def triage_queue(limit: int = 100, session: AsyncSession = Depends(get_session)):
-    """Admin triage queue — open tickets ordered by priority_score desc. TODO: admin auth."""
+    """Admin triage queue — open tickets ordered by priority_score desc.
+
+    Operator-only: gated on ADMIN_API_TOKENS (fail-closed). Previously this had only a
+    `TODO: admin auth` and handed the full triage queue to any anonymous caller (W15.4)."""
     rows = await admin_queue(session, limit=limit)
     return {"count": len(rows), "tickets": [TicketView.of(t).model_dump() for t in rows]}
 

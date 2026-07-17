@@ -10,7 +10,7 @@ class Settings:
     OBJECT_STORE_URL: str = os.environ.get("OBJECT_STORE_URL", "")  # S3-compatible; blobs only
 
     # GitHub mirror (work surface, not source of truth)
-    GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "ikhal3d/netplex")
+    GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "netplexio/netplex")
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")  # scoped issues:write
 
     # Crypto — 🔴 GATED subsystems. Public keys may be present; PRIVATE keys must come from the
@@ -30,6 +30,12 @@ class Settings:
     # (the box-forward hop was previously unauthenticated). Comma-separated allows
     # rotating tokens (old+new valid during a rollover).
     FORWARD_INTAKE_TOKENS: str = os.environ.get("FORWARD_INTAKE_TOKENS", "")
+
+    # Admin/operator auth for the privileged triage surface (/tickets/admin/*). Same
+    # fail-closed, comma-separated, Bearer-token scheme as the intake token. UNSET ⇒ the
+    # admin queue is DISABLED (503), never served open (it was previously a `TODO: admin
+    # auth` that handed the full triage queue to anyone).
+    ADMIN_API_TOKENS: str = os.environ.get("ADMIN_API_TOKENS", "")
 
 
 settings = Settings()

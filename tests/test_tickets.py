@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from tests.conftest import FORWARD_HEADERS
+from tests.conftest import ADMIN_HEADERS, FORWARD_HEADERS
 
 pytestmark = pytest.mark.asyncio
 
@@ -36,7 +36,7 @@ async def test_admin_queue_ordered_by_priority(client):
     await c.post("/api/v1/diagnostics/forward", json={
         "fingerprint": "high", "title": "crash", "severity": "s1_crash", "reporter_tier": "architect",
     }, headers=FORWARD_HEADERS)
-    q = await c.get("/api/v1/tickets/admin/queue")
+    q = await c.get("/api/v1/tickets/admin/queue", headers=ADMIN_HEADERS)
     tickets = q.json()["tickets"]
     assert q.json()["count"] == 2
     assert tickets[0]["title"] == "crash"
