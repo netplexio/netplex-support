@@ -5,7 +5,13 @@ A production deploy sits behind Caddy, so the socket peer FastAPI sees is always
 proxy (127.0.0.1), never the real visitor. These tests lock in: (1) by default (no
 trusted proxy configured) X-Forwarded-For is ignored entirely — a caller can't forge it
 to dodge the rate limit; (2) once the socket peer is a configured trusted proxy,
-X-Forwarded-For IS honoured so distinct real visitors get distinct rate-limit buckets.
+X-Forwarded-For IS honoured, but ONLY the RIGHTMOST entry that isn't itself a trusted
+proxy — never the leftmost. Caddy's reverse_proxy APPENDS the address it observed to
+any existing X-Forwarded-For rather than replacing it, so a caller can freely prepend
+whatever value it likes; only the trailing, proxy-added entry is trustworthy. (An
+earlier version of this function — and netplex-rendezvous's client_ip(), which this was
+ported from — took the leftmost entry instead; live-verified wrong against this
+deploy's real Caddy on 2026-07-27 before being fixed here.)
 
 httpx's ASGITransport reports the socket peer as ("127.0.0.1", 123) for every test
 request (see httpx._transports.asgi.ASGITransport), which doubles as our "the proxy is
@@ -42,8 +48,9 @@ async def test_xff_ignored_when_no_trusted_proxy_configured(client, reset_rate_l
 
 
 async def test_xff_honoured_when_peer_is_a_trusted_proxy(client, reset_rate_limit):
-    """TRUSTED_PROXIES=127.0.0.1 (the test client's socket peer): X-Forwarded-For is now
-    honoured, so two distinct forwarded IPs get two independent rate-limit budgets."""
+    """TRUSTED_PROXIES=127.0.0.1 (the test client's socket peer): a single, proxy-added
+    X-Forwarded-For entry IS honoured, so two distinct forwarded IPs get two independent
+    rate-limit budgets."""
     from app.config import settings
 
     prev = settings.TRUSTED_PROXIES
@@ -72,8 +79,36 @@ async def test_xff_honoured_when_peer_is_a_trusted_proxy(client, reset_rate_limi
         settings.TRUSTED_PROXIES = prev
 
 
-async def test_xff_first_hop_used_when_chained(client, reset_rate_limit):
-    """A multi-hop X-Forwarded-For chain: the LEFT-most (original client) entry wins."""
+async def test_xff_forged_leading_hop_cannot_dodge_the_rate_limit(client, reset_rate_limit):
+    """The realistic shape: a caller sends its OWN forged X-Forwarded-For, then Caddy
+    (a trusted proxy) appends the address it actually observed. Varying the forged
+    leading entry must NOT create new rate-limit buckets — only the trailing,
+    Caddy-added entry may."""
+    from app.config import settings
+
+    prev = settings.TRUSTED_PROXIES
+    settings.TRUSTED_PROXIES = "127.0.0.1"
+    try:
+        c, _ = client
+        codes = []
+        for i in range(12):
+            r = await c.post(
+                "/api/v1/diagnostics/web",
+                json={"title": f"spam {i}"},
+                # left = attacker-forged and different every request; right = what
+                # Caddy actually saw, constant. Only the right one should matter.
+                headers={"X-Forwarded-For": f"9.9.9.{i}, 203.0.113.77"},
+            )
+            codes.append(r.status_code)
+        assert codes.count(202) == 10, codes  # shared bucket despite the varying forged prefix
+        assert 429 in codes
+    finally:
+        settings.TRUSTED_PROXIES = prev
+
+
+async def test_xff_rightmost_untrusted_hop_used_when_chained(client, reset_rate_limit):
+    """A multi-hop X-Forwarded-For chain: the RIGHT-most entry that isn't itself a
+    trusted proxy wins — never the left-most (client-forgeable) one."""
     from app.auth import client_ip
     from app.config import settings
     from starlette.requests import Request
@@ -84,10 +119,13 @@ async def test_xff_first_hop_used_when_chained(client, reset_rate_limit):
         scope = {
             "type": "http",
             "client": ("127.0.0.1", 123),
-            "headers": [(b"x-forwarded-for", b"198.51.100.5, 127.0.0.1")],
+            # "198.51.100.5" is whatever the caller claimed (forgeable); "203.0.113.77"
+            # is what Caddy itself actually observed and appended — only that trailing
+            # entry is trustworthy.
+            "headers": [(b"x-forwarded-for", b"198.51.100.5, 203.0.113.77")],
         }
         req = Request(scope)
-        assert client_ip(req) == "198.51.100.5"
+        assert client_ip(req) == "203.0.113.77"
     finally:
         settings.TRUSTED_PROXIES = prev
 
