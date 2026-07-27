@@ -91,6 +91,28 @@ class TrustStore:
         return _b64d(e["public_key"]) if e else None
 
 
+def trust_store_from_settings(trust_store_json: str, single_public_key: str) -> TrustStore:
+    """Build a TrustStore the way every settings-backed caller in this service does it:
+    prefer a full multi-key JSON trust store (rotation/revocation — KEY-GENERATION-
+    RUNBOOK.md §7-8) when configured, else fall back to a single key treated as
+    `status: "active"`. Both unset → an empty store (verification always fails closed
+    with reason "unknown-key", never silently "open"). Takes plain strings (not the
+    `settings` object) so it stays a pure crypto-module function with no app.config
+    import — callers pass `settings.X_TRUST_STORE_JSON` / `settings.X_PUBLIC_KEY`."""
+    raw = (trust_store_json or "").strip()
+    if raw:
+        try:
+            keys = json.loads(raw)
+        except (ValueError, TypeError):
+            keys = []
+        if isinstance(keys, list):
+            return TrustStore.from_keys(keys)
+        return TrustStore.from_keys([])
+    if single_public_key:
+        return TrustStore.from_keys([{"public_key": single_public_key, "status": "active"}])
+    return TrustStore.from_keys([])
+
+
 def verify_manifest(manifest: dict, trust: TrustStore) -> tuple[bool, str]:
     """Verify a signed manifest against the trust store.
 

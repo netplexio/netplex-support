@@ -145,3 +145,96 @@ async def admin_queue(session: AsyncSession, limit: int = 100) -> list[Ticket]:
         .limit(limit)
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+# ─────────────────────── release manifests (signed, offline) ───────────────────────
+# Rows here are ALREADY-VERIFIED manifests: app/routers/releases.py's /upload only ever
+# inserts a row after app.crypto.signing.verify_manifest passed against the PUBLIC
+# signing trust store. No private key material is ever stored — manifest_json is the
+# full signed manifest exactly as uploaded (including its signature block), so a box
+# fetching it can independently re-verify against its own baked-in trust store too.
+# Append-only (never overwritten in place): every accepted upload is a new row, so
+# GET /releases/manifest/{channel} serving "the latest" is a query, not a destructive
+# write, and history/rollback stay possible.
+
+class ReleaseManifest(Base):
+    __tablename__ = "release_manifests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel: Mapped[str] = mapped_column(String(32), index=True)
+    version: Mapped[str] = mapped_column(String(64), default="")
+    key_id: Mapped[str] = mapped_column(String(32), default="")
+    manifest_json: Mapped[str] = mapped_column(Text)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+async def store_release_manifest(
+    session: AsyncSession, *, channel: str, version: str, key_id: str, manifest_json: str
+) -> ReleaseManifest:
+    row = ReleaseManifest(
+        channel=channel, version=version, key_id=key_id, manifest_json=manifest_json
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+async def latest_release_manifest(session: AsyncSession, channel: str) -> Optional[ReleaseManifest]:
+    stmt = (
+        select(ReleaseManifest)
+        .where(ReleaseManifest.channel == channel)
+        .order_by(ReleaseManifest.id.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+# ─────────────────────── license tokens (signed, offline) ───────────────────────
+# Same shape/boundary as release manifests above: a row only ever exists after
+# app.routers.licensing's /register verified the token against the PUBLIC license
+# trust store. Append-only per customer_ref so re-registering (renewal, tier change)
+# never loses the prior record.
+
+class LicenseToken(Base):
+    __tablename__ = "license_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    customer_ref: Mapped[str] = mapped_column(String(256), index=True, default="")
+    key_id: Mapped[str] = mapped_column(String(32), default="")
+    tier: Mapped[str] = mapped_column(String(32), default="")
+    expires_at: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    token_json: Mapped[str] = mapped_column(Text)
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+async def store_license_token(
+    session: AsyncSession,
+    *,
+    customer_ref: str,
+    key_id: str,
+    tier: str,
+    expires_at: Optional[int],
+    token_json: str,
+) -> LicenseToken:
+    row = LicenseToken(
+        customer_ref=customer_ref,
+        key_id=key_id,
+        tier=tier,
+        expires_at=expires_at,
+        token_json=token_json,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+async def latest_license_token_for(session: AsyncSession, customer_ref: str) -> Optional[LicenseToken]:
+    stmt = (
+        select(LicenseToken)
+        .where(LicenseToken.customer_ref == customer_ref)
+        .order_by(LicenseToken.id.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()

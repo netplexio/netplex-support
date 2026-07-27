@@ -2,21 +2,33 @@
 
 VERIFY is live (stateless, PUBLIC key). A license "token" is a JSON string holding a signed dict:
 {tier, expires_at(unix), customer_ref, ..., signature:{alg,key_id,sig}}. We verify the ed25519
-signature against a TrustStore built from settings.LICENSE_PUBLIC_KEY, then check expiry.
+signature against a TrustStore built from settings.LICENSE_PUBLIC_KEY / LICENSE_TRUST_STORE_JSON,
+then check expiry.
 
-ISSUE is 🔴 GATED — it mints tokens with the PRIVATE license key (offline custody).
+REGISTER is live too, admin-only: it accepts a token ALREADY signed OFFLINE (by whoever holds the
+private license key, via tools/mint_license.py on an air-gapped machine — see
+docs/KEY-GENERATION-RUNBOOK.md) and, if it verifies, stores it. This is the only way a license
+token ever reaches this server's store.
+
+ISSUE stays 🔴 GATED — it would mean minting tokens with the PRIVATE license key, which this
+server must never hold (docs/SECURITY-BLOCKERS.md #3, key custody). That is a permanent
+architectural boundary, not a temporary block — REGISTER does not relax it.
 """
 from __future__ import annotations
 
 import json
 import time
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import client_ip
+from app.auth import client_ip, require_admin
 from app.config import settings
-from app.crypto.signing import TrustStore, verify_manifest
+from app.crypto.signing import TrustStore, trust_store_from_settings, verify_manifest
+from app.db import get_session
+from app.models import latest_license_token_for, store_license_token
 from app.ratelimit import rate_ok
 
 router = APIRouter(prefix="/api/v1/license", tags=["licensing"])
@@ -43,10 +55,10 @@ class VerifyResult(BaseModel):
 
 
 def _trust_store() -> TrustStore:
-    """Build a TrustStore from the configured base64 public key. Empty config → empty store."""
-    if not settings.LICENSE_PUBLIC_KEY:
-        return TrustStore.from_keys([])
-    return TrustStore.from_keys([{"public_key": settings.LICENSE_PUBLIC_KEY, "status": "active"}])
+    """Build a TrustStore from the configured PUBLIC license key(s). Prefers the full
+    LICENSE_TRUST_STORE_JSON (rotation/revocation) over the single LICENSE_PUBLIC_KEY when
+    set; both unset → empty store (verification fails closed)."""
+    return trust_store_from_settings(settings.LICENSE_TRUST_STORE_JSON, settings.LICENSE_PUBLIC_KEY)
 
 
 def _verify_token(token: str, trust: TrustStore) -> VerifyResult:
@@ -100,6 +112,103 @@ class IssueRequest(BaseModel):
 
 @router.post("/issue")
 async def issue_license(req: IssueRequest):
-    """🔴 GATED: mint a signed license token. Requires the OFFLINE private license key.
-    Blocked until docs/SECURITY-BLOCKERS.md key-custody item is cleared."""
-    raise HTTPException(501, "GATED — license issuance blocked on key-custody security blocker")
+    """🔴 PERMANENTLY GATED: mint a signed license token. Requires the OFFLINE private
+    license key, which this server must never hold (docs/SECURITY-BLOCKERS.md #3). Mint
+    a token OFFLINE with tools/mint_license.py, then POST it to /api/v1/license/register."""
+    raise HTTPException(
+        501,
+        "GATED — server-side license issuance is permanently disabled by design (key-custody "
+        "rule). Mint a token offline via tools/mint_license.py, then POST it to "
+        "/api/v1/license/register",
+    )
+
+
+class RegisterRequest(BaseModel):
+    token: str = Field(max_length=4096)  # an ALREADY-SIGNED token, minted offline
+
+
+class RegisterResult(BaseModel):
+    accepted: bool
+    customer_ref: str = ""
+    tier: str = ""
+    key_id: str = ""
+    expires_at: int | None = None
+
+
+@router.post(
+    "/register", response_model=RegisterResult, dependencies=[Depends(require_admin)]
+)
+async def register_license(
+    req: RegisterRequest, session: AsyncSession = Depends(get_session)
+):
+    """Admin-only: register an ALREADY-SIGNED license token into the store.
+
+    This endpoint NEVER signs anything — it only verifies the presented signature against
+    the PUBLIC license trust store (the same primitive /verify uses) and, if and only if
+    that verification passes, persists the token. The token itself must have been produced
+    OFFLINE, on the machine that holds the private license key, using tools/mint_license.py
+    (docs/KEY-GENERATION-RUNBOOK.md). Mirrors app/routers/releases.py's /upload — same
+    custody boundary, same shape."""
+    trust = _trust_store()
+    try:
+        claims = json.loads(req.token)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "malformed token: not valid JSON")
+    if not isinstance(claims, dict):
+        raise HTTPException(400, "malformed token: not a JSON object")
+
+    ok, key_id_or_reason = verify_manifest(claims, trust)
+    if not ok:
+        raise HTTPException(400, f"signature rejected: {key_id_or_reason}")
+
+    result = _verify_token(req.token, trust)
+    if not result.valid:
+        raise HTTPException(400, f"token rejected: {result.reason}")
+
+    customer_ref = str(claims.get("customer_ref", ""))
+    await store_license_token(
+        session,
+        customer_ref=customer_ref,
+        key_id=key_id_or_reason,
+        tier=result.tier,
+        expires_at=result.expires_at,
+        token_json=req.token,
+    )
+    return RegisterResult(
+        accepted=True,
+        customer_ref=customer_ref,
+        tier=result.tier,
+        key_id=key_id_or_reason,
+        expires_at=result.expires_at,
+    )
+
+
+class RegisteredView(BaseModel):
+    customer_ref: str
+    tier: str
+    key_id: str
+    expires_at: Optional[int] = None
+    token: str
+
+
+@router.get(
+    "/registered/{customer_ref}",
+    response_model=RegisteredView,
+    dependencies=[Depends(require_admin)],
+)
+async def get_registered_license(
+    customer_ref: str, session: AsyncSession = Depends(get_session)
+):
+    """Admin-only: look up the most recently registered license token for a customer_ref
+    (support-ops lookup — "did we register this customer's license, and with what terms").
+    """
+    row = await latest_license_token_for(session, customer_ref)
+    if row is None:
+        raise HTTPException(404, "no registered license for that customer_ref")
+    return RegisteredView(
+        customer_ref=row.customer_ref,
+        tier=row.tier,
+        key_id=row.key_id,
+        expires_at=row.expires_at,
+        token=row.token_json,
+    )
