@@ -1,0 +1,42 @@
+services:
+  support:
+    build: .
+    # Bridge networking (unlike netplex-rendezvous's network_mode: host — that service
+    # needs to see clients' real source IPs for STUN-style reflexive discovery; this is
+    # a plain HTTP API always reached through Caddy). Published to 127.0.0.1 only, same
+    # convention as netplex-control-backend — never exposed directly to the internet.
+    ports:
+      - "127.0.0.1:${PORT_HOST:-18099}:8080"
+    environment:
+      # Dev-fallback SQLite, persisted via the bind-mounted ./data (see volumes:).
+      # Swap for a real Postgres DATABASE_URL when the ticket volume warrants it —
+      # nothing here is dev-shaped by hardcoding, only by the default.
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./data/netplex_support.db}
+      # Caddy always connects from localhost inside this VM; trust its X-Forwarded-For
+      # for the /diagnostics/web anti-abuse rate limiter (app/auth.py:client_ip). Never
+      # widen this beyond the proxy's real address.
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.1}
+      # ── SECURITY — REQUIRED. Fail-closed without them (same pattern as
+      # netplex-rendezvous's RENDEZVOUS_AUTH_TOKEN). Generate each with:
+      #   openssl rand -base64 32
+      # /diagnostics/forward returns 503 until FORWARD_INTAKE_TOKENS is set;
+      # /tickets/admin/* returns 503 until ADMIN_API_TOKENS is set. Comma-separate to
+      # keep old+new valid during a rotation.
+      - FORWARD_INTAKE_TOKENS=${FORWARD_INTAKE_TOKENS:?set a machine intake token (openssl rand -base64 32)}
+      - ADMIN_API_TOKENS=${ADMIN_API_TOKENS:?set an admin/triage token (openssl rand -base64 32)}
+      # 🔴 Public keys for the license/release subsystems. INTENTIONALLY UNSET until
+      # Khaled generates the offline signing + license keypair on an air-gapped machine
+      # (docs/KEY-GENERATION-RUNBOOK.md) — the PRIVATE keys never touch this server.
+      # Until then /license/verify returns {valid:false} for any token and /releases/*
+      # stay 501 — by design (docs/SECURITY-BLOCKERS.md), not a deploy defect. Once
+      # Khaled hands over the two .pub files, paste their contents here and redeploy.
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
+      - SIGNING_PUBLIC_KEY=${SIGNING_PUBLIC_KEY:-}
+      - GITHUB_REPO=${GITHUB_REPO:-netplexio/netplex}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - INTAKE_RATE_PER_MIN=${INTAKE_RATE_PER_MIN:-30}
+      - WEB_INTAKE_RATE_PER_MIN=${WEB_INTAKE_RATE_PER_MIN:-10}
+      - MAX_BLOB_BYTES=${MAX_BLOB_BYTES:-5242880}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

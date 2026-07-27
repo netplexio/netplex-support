@@ -1,4 +1,5 @@
-"""Bearer-token auth for netplex-support's privileged surfaces.
+"""Bearer-token auth + trusted-proxy IP resolution for netplex-support's privileged
+and rate-limited surfaces.
 
 Fail-CLOSED: when the relevant token set is unconfigured the endpoint is DISABLED (503)
 rather than served open. Constant-time compare against any of the (comma-separated)
@@ -7,6 +8,7 @@ auth on /diagnostics/forward (app/routers/diagnostics.py)."""
 from __future__ import annotations
 
 import hmac
+import ipaddress
 
 from fastapi import HTTPException, Request
 
@@ -26,3 +28,59 @@ def _require_bearer(request: Request, tokens_csv: str, what: str) -> None:
 def require_admin(request: Request) -> None:
     """Gate the operator triage surface on ADMIN_API_TOKENS (fail-closed)."""
     _require_bearer(request, settings.ADMIN_API_TOKENS, "admin API")
+
+
+# ── trusted-proxy client-IP resolution (mirrors netplex-rendezvous's app/security.py
+# client_ip() fix, F-R5) ──
+#
+# A production deploy always sits behind our Caddy TLS terminator, so the socket peer
+# FastAPI sees on every request is Caddy (typically 127.0.0.1), never the real visitor.
+# Any IP-keyed decision (the /diagnostics/web anti-abuse rate limit) that trusted
+# X-Forwarded-For unconditionally would let a caller forge it to dodge the limit; one
+# that ignored it entirely would bucket every visitor behind the proxy into a single IP
+# and make the limiter useless. So: honour X-Forwarded-For ONLY when the immediate
+# socket peer is a configured trusted proxy; otherwise the socket peer is authoritative.
+def _trusted_proxies() -> list:
+    """Peers whose X-Forwarded-For we honour: IPs, CIDRs, or the literal "*" (trust all
+    forwarders — never use on a public listener). Default empty = trust NONE."""
+    out: list = []
+    for tok in settings.TRUSTED_PROXIES.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        if tok == "*":
+            out.append("*")
+            continue
+        try:
+            out.append(ipaddress.ip_network(tok, strict=False))
+        except ValueError:
+            continue  # ignore garbage rather than crash the request path
+    return out
+
+
+def _peer_is_trusted(peer: str) -> bool:
+    nets = _trusted_proxies()
+    if not nets:
+        return False
+    if any(n == "*" for n in nets):
+        return True
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(
+        isinstance(n, (ipaddress.IPv4Network, ipaddress.IPv6Network)) and ip in n
+        for n in nets
+    )
+
+
+def client_ip(request: Request) -> str:
+    """Resolve the real client IP for IP-keyed decisions (rate limiting). Honours
+    X-Forwarded-For ONLY when the socket peer is a configured trusted proxy
+    (settings.TRUSTED_PROXIES); otherwise the socket peer is authoritative."""
+    peer = request.client.host if request.client else ""
+    if _peer_is_trusted(peer):
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            return xff.split(",")[0].strip() or peer
+    return peer or "unknown"
