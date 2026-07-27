@@ -9,6 +9,7 @@ defence in depth. Email intake is a marked stub (no real inbox poller here).
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 from typing import Literal, Optional
 
@@ -21,6 +22,7 @@ from app.config import settings
 from app.db import get_session
 from app.models import create_or_dedupe
 from app.ratelimit import rate_ok
+from app.routers.licensing import _trust_store, _verify_token
 
 router = APIRouter(prefix="/api/v1/diagnostics", tags=["diagnostics"])
 
@@ -93,6 +95,31 @@ async def receive_forwarded(
         raise HTTPException(429, "forward rate limit exceeded - back off")
     if not rate_ok(f"fwd:install:{report.install_id or ip}", limit):
         raise HTTPException(429, "forward rate limit exceeded - back off")
+
+    # SECURITY (adversarial sweep 2026-07-27, P2): report.reporter_tier was trusted
+    # AS-IS - any caller holding the shared, fleet-wide FORWARD_INTAKE_TOKENS value
+    # could set "reporter_tier": "master" on every report with zero proof of
+    # entitlement. TIER_WEIGHT (app/models.py) gives master/enterprise a 5x
+    # multiplier on priority_score, so this let anyone jump the admin triage queue
+    # ahead of genuine paying customers. report.license_token WAS accepted by the
+    # schema but never actually verified anywhere - licensing.py's own
+    # _verify_token/_trust_store (the SAME primitives /license/verify uses) were
+    # simply never wired in here, despite the design doc (support-system.md §3.1)
+    # describing license_id_hash as existing specifically "to verify tier without
+    # storing the raw license". Fail closed: reporter_tier is now "associate" (the
+    # floor) UNLESS a genuine, cryptographically-verified license_token is presented
+    # - the self-asserted field is never trusted directly, matching the same
+    # verify-don't-trust posture as /license/verify itself. license_id_hash is a
+    # hash of the token (not the raw token, matching the design doc's intent) so a
+    # ticket can be correlated back to a license without persisting it.
+    verified_tier = "associate"
+    license_id_hash = None
+    if report.license_token:
+        result = _verify_token(report.license_token, _trust_store())
+        if result.valid:
+            verified_tier = result.tier or "associate"
+            license_id_hash = hashlib.sha256(report.license_token.encode()).hexdigest()
+
     ticket = await create_or_dedupe(
         session,
         kind=report.kind,
@@ -101,10 +128,11 @@ async def receive_forwarded(
         body=report.body,
         severity=report.severity,
         source="forward",
-        reporter_tier=report.reporter_tier,
+        reporter_tier=verified_tier,
         identified=bool(report.contact),
         contact=report.contact,
         install_id=report.install_id,
+        license_id_hash=license_id_hash,
     )
     return {
         "accepted": True,
