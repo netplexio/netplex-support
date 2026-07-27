@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import client_ip
 from app.config import settings
 from app.db import get_session
 from app.models import create_or_dedupe
@@ -88,8 +89,9 @@ async def receive_forwarded(
     Authenticated (Bearer token, fail-closed) and rate-limited PER INSTALL so one box
     can't hammer the intake - closes the 2026-07-11 gap where this hop had neither."""
     _require_forward_auth(request)
-    # Rate-limit by install_id (falls back to client IP) using the intake budget.
-    key = f"fwd:{report.install_id or (request.client.host if request.client else 'unknown')}"
+    # Rate-limit by install_id (falls back to the trusted-proxy-aware client IP) using
+    # the intake budget.
+    key = f"fwd:{report.install_id or client_ip(request)}"
     if not _rate_ok(key, max(int(getattr(settings, "INTAKE_RATE_PER_MIN", 30)), 1)):
         raise HTTPException(429, "forward rate limit exceeded - back off")
     ticket = await create_or_dedupe(
@@ -118,10 +120,11 @@ async def receive_forwarded(
 async def receive_web(
     report: WebReport, request: Request, session: AsyncSession = Depends(get_session)
 ):
-    """PUBLIC website intake → create/dedupe a ticket (source=web). IP rate-limited."""
-    client_ip = request.client.host if request.client else "unknown"
+    """PUBLIC website intake → create/dedupe a ticket (source=web). IP rate-limited
+    (trusted-proxy-aware — see app/auth.py:client_ip)."""
+    ip = client_ip(request)
     limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
-    if not _rate_ok(client_ip, limit):
+    if not _rate_ok(ip, limit):
         raise HTTPException(429, "rate limit exceeded — slow down")
 
     ticket = await create_or_dedupe(

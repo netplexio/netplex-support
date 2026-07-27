@@ -38,7 +38,7 @@ content-addressed blob in the object store. Anonymous (free) reports carry only 
 ### 2. Ticket / triage
 Authoritative ticket DB. Triage console computes `priority_score` (severity × occurrences ×
 tier_weight) and `sla_due`. "Open as GitHub issue" mirrors a ticket (text + blob links) to
-`ikhal3d/netplex`; the issue number is stored back on the ticket. Release tags flip tickets to
+`netplexio/netplex`; the issue number is stored back on the ticket. Release tags flip tickets to
 `released` + stamp `fixed_in_version` (closes the loop the product dashboards read).
 
 ### 3. Licensing authority

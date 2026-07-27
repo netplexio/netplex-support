@@ -29,12 +29,39 @@ where tickets are triaged, and where signed releases/updates are built and publi
 
 ## Status
 
-DESIGN + SCAFFOLD (2026-06-23). The 🔴 release/signing/distribution subsystems are **gated** on the
-security blockers in [docs/SECURITY-BLOCKERS.md](docs/SECURITY-BLOCKERS.md). The diagnostics +
-ticket + licensing-verify paths can be built first.
+DESIGN + SCAFFOLD (2026-06-23), now **deployed** (2026-07-27) as `support.netplex.io`. The 🔴
+release/signing/distribution subsystems stay **gated** on the security blockers in
+[docs/SECURITY-BLOCKERS.md](docs/SECURITY-BLOCKERS.md) — `/api/v1/releases/*` returns `501` and
+`/api/v1/license/issue` returns `501` until Khaled generates the offline signing + license
+keypair (see [docs/KEY-GENERATION-RUNBOOK.md](docs/KEY-GENERATION-RUNBOOK.md)) and hands over the
+two `.pub` files. Everything else — `/health`, diagnostics intake (`/forward`, `/web`), ticket
+triage, and license **verify** — is live now, scoped and bounded, no private key involved.
 
 Design source of truth lives in the product repo:
 `netplex/docs/platform/support-system.md` and `netplex/docs/platform/living-system.md`.
+
+## Run
+
+```bash
+pip install -r requirements.txt
+# Fail-closed without these — generate with: openssl rand -base64 32
+export FORWARD_INTAKE_TOKENS="..."
+export ADMIN_API_TOKENS="..."
+uvicorn app.main:app --host 0.0.0.0 --port 8080
+# or: docker compose up   (FORWARD_INTAKE_TOKENS / ADMIN_API_TOKENS must be set)
+pytest -q
+```
+
+## Deploy
+
+`./deploy.sh` clones/pulls this repo on the remote and runs it via `docker compose`
+(bridge networking, published to `127.0.0.1` only, fronted by the shared Caddy — see
+`docker-compose.yml`). Unlike `netplex-rendezvous`, this service does **not** need host
+networking: it's a plain HTTP API, always reached through the proxy, so
+`TRUSTED_PROXIES` (honoured only from the proxy's own address) resolves the real client
+IP for the `/diagnostics/web` rate limiter instead (`app/auth.py:client_ip`). SQLite
+(the dev fallback) is bind-mounted at `./data` for persistence across container
+recreation; swap `DATABASE_URL` for Postgres when ticket volume warrants it.
 
 ## Layout
 

@@ -19,6 +19,12 @@ class Settings:
     SIGNING_PUBLIC_KEY: str = os.environ.get("SIGNING_PUBLIC_KEY", "")
     # Private keys intentionally NOT read here — release/issue code is gated.
 
+    # Trusted reverse-proxy peers (IPs/CIDRs, or "*") whose X-Forwarded-For we honour for
+    # IP-keyed decisions (the /diagnostics/web rate limit). Default empty = trust NONE, so
+    # the raw socket peer is authoritative. Set to our Caddy terminator's address (it always
+    # connects from localhost — "127.0.0.1") when deployed behind it. See app/auth.py.
+    TRUSTED_PROXIES: str = os.environ.get("TRUSTED_PROXIES", "")
+
     # Intake limits (anti-abuse)
     INTAKE_RATE_PER_MIN: int = int(os.environ.get("INTAKE_RATE_PER_MIN", "30"))
     WEB_INTAKE_RATE_PER_MIN: int = int(os.environ.get("WEB_INTAKE_RATE_PER_MIN", "10"))
