@@ -55,13 +55,14 @@ pytest -q
 ## Deploy
 
 `./deploy.sh` clones/pulls this repo on the remote and runs it via `docker compose`
-(bridge networking, published to `127.0.0.1` only, fronted by the shared Caddy — see
-`docker-compose.yml`). Unlike `netplex-rendezvous`, this service does **not** need host
-networking: it's a plain HTTP API, always reached through the proxy, so
-`TRUSTED_PROXIES` (honoured only from the proxy's own address) resolves the real client
-IP for the `/diagnostics/web` rate limiter instead (`app/auth.py:client_ip`). SQLite
-(the dev fallback) is bind-mounted at `./data` for persistence across container
-recreation; swap `DATABASE_URL` for Postgres when ticket volume warrants it.
+(host networking, `uvicorn` bound to `127.0.0.1` only, fronted by the shared Caddy —
+see `docker-compose.yml`). Host networking (like `netplex-rendezvous`, though for a
+different reason: bridge NAT would make the peer IP Caddy's `X-Forwarded-For` trust
+depends on float across network recreation, silently breaking `TRUSTED_PROXIES` —
+see the compose file's comment) keeps Caddy's real loopback address the stable,
+actual peer, which `app/auth.py:client_ip` needs for the `/diagnostics/web` rate
+limiter. SQLite (the dev fallback) is bind-mounted at `./data` for persistence across
+container recreation; swap `DATABASE_URL` for Postgres when ticket volume warrants it.
 
 ## Layout
 

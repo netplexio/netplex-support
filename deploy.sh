@@ -3,8 +3,9 @@
 # Usage: ./deploy.sh [user@host] [port]
 #   defaults: user@host = ${DEPLOY_TARGET:-ubuntu@168.138.30.115}, port = ${PORT:-18099}
 # Clones (or pulls) this repo on the remote and runs it via docker compose.
-# Mirrors netplex-rendezvous/deploy.sh's shape; adapted for bridge networking (see
-# docker-compose.yml) since this is a plain HTTP API, not a host-network STUN relay.
+# Mirrors netplex-rendezvous/deploy.sh's shape. Also host-networked like rendezvous
+# (see docker-compose.yml for why — bridge NAT floats the peer IP Caddy's
+# X-Forwarded-For trust needs to be stable), but binds 127.0.0.1 only, never 0.0.0.0.
 #
 # REQUIRED on the remote before first run — the container is fail-closed without them:
 #   FORWARD_INTAKE_TOKENS, ADMIN_API_TOKENS   (openssl rand -base64 32 each)

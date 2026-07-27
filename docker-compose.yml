@@ -1,12 +1,20 @@
 services:
   support:
     build: .
-    # Bridge networking (unlike netplex-rendezvous's network_mode: host — that service
-    # needs to see clients' real source IPs for STUN-style reflexive discovery; this is
-    # a plain HTTP API always reached through Caddy). Published to 127.0.0.1 only, same
-    # convention as netplex-control-backend — never exposed directly to the internet.
-    ports:
-      - "127.0.0.1:${PORT_HOST:-18099}:8080"
+    # Host networking. Bridge networking was tried first and reverted (2026-07-27):
+    # Caddy (host-networked) connects via 127.0.0.1, but Docker's bridge NAT means the
+    # container actually sees the peer as the bridge gateway IP (e.g. 172.x.0.1) — a
+    # value that floats across network recreation — not 127.0.0.1. TRUSTED_PROXIES
+    # below would then never match live traffic, silently defeating the trusted-proxy
+    # fix in app/auth.py and collapsing the /diagnostics/web rate limiter back into one
+    # shared bucket. Host networking (matching netplex-rendezvous) makes Caddy's real,
+    # stable loopback address the actual peer — no NAT, nothing to float. uvicorn binds
+    # 127.0.0.1 explicitly (NOT 0.0.0.0) so the service stays reachable only via Caddy,
+    # never directly from the internet — unlike rendezvous, which intentionally also
+    # listens on 0.0.0.0 for its own reasons (STUN/direct UDP), this is a plain HTTP API
+    # with no such need.
+    network_mode: host
+    command: ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "${PORT_HOST:-18099}"]
     environment:
       # Dev-fallback SQLite, persisted via the bind-mounted ./data (see volumes:).
       # Swap for a real Postgres DATABASE_URL when the ticket volume warrants it —
