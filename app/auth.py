@@ -77,10 +77,30 @@ def _peer_is_trusted(peer: str) -> bool:
 def client_ip(request: Request) -> str:
     """Resolve the real client IP for IP-keyed decisions (rate limiting). Honours
     X-Forwarded-For ONLY when the socket peer is a configured trusted proxy
-    (settings.TRUSTED_PROXIES); otherwise the socket peer is authoritative."""
+    (settings.TRUSTED_PROXIES); otherwise the socket peer is authoritative.
+
+    Walks X-Forwarded-For from the RIGHT and returns the first entry that is NOT
+    itself a trusted proxy. Each hop APPENDS the address it observed (Caddy's default
+    reverse_proxy behaviour, matching the general X-Forwarded-For convention), so the
+    rightmost entries are the ones OUR infrastructure actually added — the leftmost
+    entry is whatever the original caller sent us unauthenticated and can freely forge
+    before ever reaching Caddy. Taking the first (leftmost) entry — as an earlier
+    version of this function, and netplex-rendezvous's client_ip(), both did — trusts
+    exactly that forgeable value; live-verified against this deploy's real Caddy (2026-
+    07-27): a request carrying a forged X-Forwarded-For arrives with Caddy's own
+    observed peer appended AFTER it, so only the rightmost-non-trusted-hop walk is
+    actually safe. (uvicorn's own ProxyHeadersMiddleware — default-enabled, trusting
+    127.0.0.1 — already applies this same correct algorithm ahead of this function when
+    Caddy is the immediate TCP peer; this makes the same guarantee hold even if that
+    upstream default is ever disabled or the deploy topology changes.)"""
     peer = request.client.host if request.client else ""
-    if _peer_is_trusted(peer):
-        xff = request.headers.get("x-forwarded-for", "")
-        if xff:
-            return xff.split(",")[0].strip() or peer
+    if not _peer_is_trusted(peer):
+        return peer or "unknown"
+    xff = request.headers.get("x-forwarded-for", "")
+    hops = [h.strip() for h in xff.split(",") if h.strip()]
+    for hop in reversed(hops):
+        if not _peer_is_trusted(hop):
+            return hop
+    # every hop (including the caller) is itself a trusted proxy — nothing untrusted
+    # to report; fall back to the socket peer.
     return peer or "unknown"
