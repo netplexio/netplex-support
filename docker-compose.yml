@@ -32,14 +32,19 @@ services:
       # keep old+new valid during a rotation.
       - FORWARD_INTAKE_TOKENS=${FORWARD_INTAKE_TOKENS:?set a machine intake token (openssl rand -base64 32)}
       - ADMIN_API_TOKENS=${ADMIN_API_TOKENS:?set an admin/triage token (openssl rand -base64 32)}
-      # 🔴 Public keys for the license/release subsystems. INTENTIONALLY UNSET until
-      # Khaled generates the offline signing + license keypair on an air-gapped machine
-      # (docs/KEY-GENERATION-RUNBOOK.md) — the PRIVATE keys never touch this server.
-      # Until then /license/verify returns {valid:false} for any token and /releases/*
-      # stay 501 — by design (docs/SECURITY-BLOCKERS.md), not a deploy defect. Once
-      # Khaled hands over the two .pub files, paste their contents here and redeploy.
+      # Public keys for the license/release subsystems. The PRIVATE keys never touch
+      # this server — they are generated + kept OFFLINE (docs/KEY-GENERATION-RUNBOOK.md).
+      # LICENSE_PUBLIC_KEY is set live (2026-07-27, key_id f98ca2703f3ed827). Until
+      # SIGNING_PUBLIC_KEY is also set, POST /api/v1/releases/upload rejects every
+      # manifest as "unknown-key" (fail-closed, by design — not a deploy defect); once
+      # Khaled hands over the release-signing .pub file, paste it here and redeploy.
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       - SIGNING_PUBLIC_KEY=${SIGNING_PUBLIC_KEY:-}
+      # Optional: a full multi-key trust store (JSON) for rotation/revocation without a
+      # redeploy losing history — takes precedence over the single key above when set.
+      # See KEY-GENERATION-RUNBOOK.md §7-8. Unset by default (single active key only).
+      - LICENSE_TRUST_STORE_JSON=${LICENSE_TRUST_STORE_JSON:-}
+      - SIGNING_TRUST_STORE_JSON=${SIGNING_TRUST_STORE_JSON:-}
       - GITHUB_REPO=${GITHUB_REPO:-netplexio/netplex}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - INTAKE_RATE_PER_MIN=${INTAKE_RATE_PER_MIN:-30}

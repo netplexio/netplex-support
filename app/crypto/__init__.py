@@ -6,10 +6,10 @@ docs/SECURITY-BLOCKERS.md. No private key is ever stored in this repo or on the 
 """
 from .signing import (
     key_id_for, canonical_bytes, sign_manifest, verify_manifest,
-    TrustStore, SignatureError,
+    TrustStore, SignatureError, trust_store_from_settings,
 )
 
 __all__ = [
     "key_id_for", "canonical_bytes", "sign_manifest", "verify_manifest",
-    "TrustStore", "SignatureError",
+    "TrustStore", "SignatureError", "trust_store_from_settings",
 ]

@@ -1,8 +1,10 @@
 """netplex-support API entrypoint.
 
-Mounts the receiving-end subsystems. Diagnostics + tickets + license-verify are live; the
-release/signing routes stay GATED (501) until docs/SECURITY-BLOCKERS.md distribution items land.
-init_db() runs on startup via the lifespan.
+Mounts the receiving-end subsystems. Diagnostics + tickets + license-verify/register +
+release manifest-upload/serve are all live. Server-side SIGNING (releases.py's /publish,
+licensing.py's /issue) stays PERMANENTLY 501 — this server must never hold a private
+signing/license key (docs/SECURITY-BLOCKERS.md #3, key custody) — that boundary does not
+move regardless of what else is built around it. init_db() runs on startup via the lifespan.
 """
 from __future__ import annotations
 

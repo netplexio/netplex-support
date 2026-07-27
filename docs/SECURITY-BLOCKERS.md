@@ -23,20 +23,46 @@ server, never on a shared host, never in CI.
 ## ⏸ OUTSTANDING — deferred, NOT ready to build (recorded 2026-06-23)
 
 These need the **production offline keypair to exist first** (Khaled generates it on an offline
-machine via `tools/gen_keypair.py`), so they are deliberately not built yet:
+machine via `tools/gen_keypair.py`), so they were deliberately not built at the time. **The real
+production keypair now exists** (generated offline by Khaled, 2026-07-27; `key_id
+f98ca2703f3ed827`, license half). Status as of 2026-07-27:
 
 1. **Bake the public key + trust store into the product** — ship `{active, next}` public keys in
    the install image; the box's update agent verifies manifests against it (`app/crypto` verify
-   lib is ready and tested).
+   lib is ready and tested). ⏸ Still outstanding — lives in the `netplex` product repo, not here.
 2. **Manifest `schema_version` negotiation** — box advertises agent version + supported range;
-   central serves the oldest compatible schema.
-3. **Release/distribution endpoints** (`app/routers/releases.py` still 501) — build manifest
-   signing pipeline (offline), registry publish, offline-bundle emitter — once a real key exists.
+   central serves the oldest compatible schema. ⏸ Still outstanding.
+3. **Release/distribution endpoints** — ✅ **built 2026-07-27.** `POST /api/v1/releases/upload`
+   (admin-only) accepts an ALREADY-SIGNED manifest (signed OFFLINE via `tools/sign_release.py` —
+   this server never signs), verifies it against `SIGNING_PUBLIC_KEY`/`SIGNING_TRUST_STORE_JSON`,
+   and stores it; `GET /api/v1/releases/manifest/{channel}` serves the latest stored+verified
+   manifest. `POST /publish` (server-side signing) stays **permanently** 501 — that is the
+   architectural boundary, not a temporary gate this closes. Registry publish / offline-bundle
+   emitter are still not built (out of scope of the upload/verify/serve pipeline).
+   `SIGNING_PUBLIC_KEY` is **not yet set** on the live host (only the license key is, so far) —
+   until Khaled hands over the release-signing `.pub`, every upload correctly fails closed as
+   `unknown-key`.
 4. **Update agent + `netplexctl`** in the product — compose two-phase self-update, rollback.
-5. **License issuance** (`/license/issue`) — needs the offline license key (custody same as signing).
+   ⏸ Still outstanding.
+5. **License issuance** — `/license/issue` stays **permanently** 501 (server-side minting needs
+   the private license key, which this server must never hold). ✅ **Built 2026-07-27:** `POST
+   /api/v1/license/register` (admin-only) accepts a token minted OFFLINE via
+   `tools/mint_license.py`, verifies it against `LICENSE_PUBLIC_KEY`/`LICENSE_TRUST_STORE_JSON`,
+   and stores it; `GET /api/v1/license/registered/{customer_ref}` looks it back up. This is the
+   register-a-pre-signed-token path, not an issuance path — the custody rule is unchanged.
 
 The crypto **primitives** (sign/verify, key-id, dual-trust, revocation) and the **offline tools**
-ARE built + tested (master 7fdb908). What's missing is the real key + the integration above.
+(`tools/gen_keypair.py`, `tools/sign_release.py`, `tools/mint_license.py`) ARE built + tested. As
+of 2026-07-27 the **receiving-end pipeline** for both (upload+verify+store+serve /
+register+verify+store+lookup) is built + tested too (`tests/test_releases.py`,
+`tests/test_license_register.py`). What's still missing: (a) the **separate release-signing
+keypair** (docs/KEY-GENERATION-RUNBOOK.md §1) does not exist yet — only the license keypair
+(§2) was generated 2026-07-27; Khaled needs to run `tools/gen_keypair.py netplex-signing-2026`
+offline and set `SIGNING_PUBLIC_KEY` here before any manifest can ever be uploaded, and (b)
+regardless of key, Khaled still has to actually run `tools/sign_release.py` /
+`tools/mint_license.py` offline and upload/register the real signed output himself for either
+pipeline to hold real production content — that step cannot be simulated or bypassed from here.
+Plus items 1/2/4 above (product-repo/update-agent work, out of this repo's scope).
 
 ## Still tracked (operational/policy, not blockers)
 User notifications · data retention/deletion · client crash-flood guard · support observability ·

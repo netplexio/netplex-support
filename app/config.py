@@ -13,11 +13,20 @@ class Settings:
     GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "netplexio/netplex")
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")  # scoped issues:write
 
-    # Crypto — 🔴 GATED subsystems. Public keys may be present; PRIVATE keys must come from the
-    # secret store at runtime and are gated on docs/SECURITY-BLOCKERS.md.
+    # Crypto — PUBLIC keys only; PRIVATE keys are never read here (see the "Private keys
+    # intentionally NOT read here" line below — that invariant has NOT changed by adding
+    # the two _TRUST_STORE_JSON settings: they still only ever carry public keys + status).
     LICENSE_PUBLIC_KEY: str = os.environ.get("LICENSE_PUBLIC_KEY", "")
     SIGNING_PUBLIC_KEY: str = os.environ.get("SIGNING_PUBLIC_KEY", "")
-    # Private keys intentionally NOT read here — release/issue code is gated.
+    # Optional multi-key trust stores (rotation/revocation — docs/KEY-GENERATION-RUNBOOK.md
+    # §7-8): a JSON list of {"public_key": <b64>, "status": "active"|"next"|"revoked"}.
+    # Takes precedence over the single *_PUBLIC_KEY above when set, so a key can be rotated
+    # or revoked by redeploying this one value instead of losing history. Unset (the
+    # default) → falls back to the single active key above, unchanged behaviour.
+    LICENSE_TRUST_STORE_JSON: str = os.environ.get("LICENSE_TRUST_STORE_JSON", "")
+    SIGNING_TRUST_STORE_JSON: str = os.environ.get("SIGNING_TRUST_STORE_JSON", "")
+    # Private keys intentionally NOT read here — signing/issuing always happens OFFLINE
+    # (tools/sign_release.py, tools/mint_license.py); this server only ever verifies.
 
     # Trusted reverse-proxy peers (IPs/CIDRs, or "*") whose X-Forwarded-For we honour for
     # IP-keyed decisions (the /diagnostics/web rate limit). Default empty = trust NONE, so

@@ -15,8 +15,8 @@ where tickets are triaged, and where signed releases/updates are built and publi
 |---|---|---|
 | **Diagnostics destination** | receives opt-in forwarded crash/bug reports over TLS; stores tickets + redacted screenshot blobs | scaffold |
 | **Ticket / triage** | the authoritative ticket DB + triage console; mirrors selected tickets to GitHub Issues | scaffold |
-| **Licensing authority** | issues + verifies signed license tokens (tier, expiry); the source of tier truth | scaffold (🔴 key custody gated) |
-| **Release / update authority** | builds release manifests, **ed25519-signs** them, runs the container registry, emits offline bundles | 🔴 GATED — do not implement until blockers cleared |
+| **Licensing authority** | verifies signed license tokens (tier, expiry); registers tokens minted offline; the source of tier truth | **live** — verify + register; `/issue` permanently 🔴 gated (key custody) |
+| **Release / update authority** | receives + verifies + serves signed release manifests; offline signing pipeline for whoever holds the signing key | **live** — upload + serve; `/publish` (server-side signing) permanently 🔴 gated (key custody) |
 
 ## Boundary rules (non-negotiable)
 
@@ -29,13 +29,26 @@ where tickets are triaged, and where signed releases/updates are built and publi
 
 ## Status
 
-DESIGN + SCAFFOLD (2026-06-23), now **deployed** (2026-07-27) as `support.netplex.io`. The 🔴
-release/signing/distribution subsystems stay **gated** on the security blockers in
-[docs/SECURITY-BLOCKERS.md](docs/SECURITY-BLOCKERS.md) — `/api/v1/releases/*` returns `501` and
-`/api/v1/license/issue` returns `501` until Khaled generates the offline signing + license
-keypair (see [docs/KEY-GENERATION-RUNBOOK.md](docs/KEY-GENERATION-RUNBOOK.md)) and hands over the
-two `.pub` files. Everything else — `/health`, diagnostics intake (`/forward`, `/web`), ticket
-triage, and license **verify** — is live now, scoped and bounded, no private key involved.
+DESIGN + SCAFFOLD (2026-06-23), **deployed** (2026-07-27) as `support.netplex.io`. Khaled
+generated the real production **license** keypair offline 2026-07-27
+(`key_id f98ca2703f3ed827`) and `LICENSE_PUBLIC_KEY` is live — `/license/verify` genuinely
+verifies now. As of the same day, the **offline-sign-then-upload receiving pipeline** is built
++ tested for both subsystems:
+
+- `POST /api/v1/releases/upload` (admin-only) + `GET /api/v1/releases/manifest/{channel}` —
+  accepts an already-signed manifest, verifies it against `SIGNING_PUBLIC_KEY`/
+  `SIGNING_TRUST_STORE_JSON`, stores it, serves the latest per channel.
+- `POST /api/v1/license/register` (admin-only) + `GET /api/v1/license/registered/{customer_ref}`
+  — same shape, for license tokens minted offline with `tools/mint_license.py`.
+
+`POST /api/v1/releases/publish` and `POST /api/v1/license/issue` stay **permanently** `501` —
+server-side signing/issuing is an architectural boundary (docs/SECURITY-BLOCKERS.md #3), not a
+temporary gate the upload/register endpoints relax. `SIGNING_PUBLIC_KEY` is not yet set (only the
+license key has been generated so far), so `/releases/upload` correctly fails closed as
+`unknown-key` until Khaled generates the release-signing keypair too (see
+[docs/KEY-GENERATION-RUNBOOK.md](docs/KEY-GENERATION-RUNBOOK.md)) and hands over its `.pub`.
+Everything else — `/health`, diagnostics intake (`/forward`, `/web`), ticket triage — is live,
+scoped and bounded, no private key involved anywhere in this repo.
 
 Design source of truth lives in the product repo:
 `netplex/docs/platform/support-system.md` and `netplex/docs/platform/living-system.md`.
@@ -71,12 +84,12 @@ app/
   main.py            FastAPI entrypoint (health + router mounts)
   config.py          settings
   db.py              DB session (Postgres / SQLite dev)
-  models.py          ticket / license / blob tables
+  models.py          ticket / license-token / release-manifest tables
   routers/
     diagnostics.py   receive forwarded reports  (scaffold)
     tickets.py       ticket CRUD + triage + claim (scaffold)
-    licensing.py     issue/verify license tokens (scaffold; issue = gated)
-    releases.py      manifest build + sign + publish (🔴 GATED stub)
+    licensing.py     verify / register (live); issue permanently gated
+    releases.py      upload / serve manifests (live); publish permanently gated
   storage/
     blobs.py         object-store interface for screenshots (scaffold)
 docs/
