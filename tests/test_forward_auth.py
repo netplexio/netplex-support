@@ -64,7 +64,47 @@ async def test_token_rotation(client):
 
 
 async def test_per_install_rate_limit(client, reset_rate_limit):
-    """One install exceeding the budget gets 429; a different install is unaffected."""
+    """One install exceeding the budget gets 429; a different install (on a DIFFERENT
+    real box, i.e. a different source IP) is unaffected.
+
+    2026-07-27: the rate limit is now dual-keyed (per-install_id AND per-IP - see
+    diagnostics.py's receive_forwarded), closing the bug where an attacker could
+    rotate install_id from a single source to defeat the budget entirely. That means
+    "a different install" must ALSO mean a different IP to be unthrottled by box-A's
+    activity, exactly as it would for two genuinely different physical boxes in
+    production - simulate that the same way test_trusted_proxy.py does (trust the
+    test client's own socket peer as a proxy, then vary X-Forwarded-For per box)."""
+    from app.config import settings
+    prev_rate = settings.INTAKE_RATE_PER_MIN
+    prev_proxies = settings.TRUSTED_PROXIES
+    settings.INTAKE_RATE_PER_MIN = 3
+    settings.TRUSTED_PROXIES = "127.0.0.1"
+    try:
+        c, _ = client
+        codes = []
+        for i in range(5):
+            r = await c.post("/api/v1/diagnostics/forward",
+                             json={**_REPORT, "fingerprint": f"rl-{i}", "install_id": "box-A"},
+                             headers={**FORWARD_HEADERS, "X-Forwarded-For": "203.0.113.1"})
+            codes.append(r.status_code)
+        assert codes.count(202) == 3, codes
+        assert codes.count(429) == 2, codes
+        # a different install ON A DIFFERENT IP is not throttled by box-A's budget
+        r = await c.post("/api/v1/diagnostics/forward",
+                         json={**_REPORT, "fingerprint": "rl-b", "install_id": "box-B"},
+                         headers={**FORWARD_HEADERS, "X-Forwarded-For": "203.0.113.2"})
+        assert r.status_code == 202, r.text
+    finally:
+        settings.INTAKE_RATE_PER_MIN = prev_rate
+        settings.TRUSTED_PROXIES = prev_proxies
+
+
+async def test_install_id_rotation_does_not_bypass_ip_rate_limit(client, reset_rate_limit):
+    """SECURITY regression (adversarial sweep 2026-07-27, P1): rotating install_id on
+    EVERY call from the SAME source IP must NOT reset the budget - this is the exact
+    bypass the audit found (any holder of the shared, fleet-wide FORWARD_INTAKE_TOKENS
+    could send a fresh random install_id per request and get a brand-new rate-limit
+    bucket every time, making the per-install budget meaningless)."""
     from app.config import settings
     prev = settings.INTAKE_RATE_PER_MIN
     settings.INTAKE_RATE_PER_MIN = 3
@@ -73,15 +113,12 @@ async def test_per_install_rate_limit(client, reset_rate_limit):
         codes = []
         for i in range(5):
             r = await c.post("/api/v1/diagnostics/forward",
-                             json={**_REPORT, "fingerprint": f"rl-{i}", "install_id": "box-A"},
+                             json={**_REPORT, "fingerprint": f"rot-{i}", "install_id": f"rotating-{i}"},
                              headers=FORWARD_HEADERS)
             codes.append(r.status_code)
-        assert codes.count(202) == 3, codes
-        assert codes.count(429) == 2, codes
-        # a different install is not throttled by box-A's budget
-        r = await c.post("/api/v1/diagnostics/forward",
-                         json={**_REPORT, "fingerprint": "rl-b", "install_id": "box-B"},
-                         headers=FORWARD_HEADERS)
-        assert r.status_code == 202, r.text
+        assert codes.count(429) >= 2, (
+            f"REGRESSION: rotating install_id from one source let more than the "
+            f"configured budget through: {codes}"
+        )
     finally:
         settings.INTAKE_RATE_PER_MIN = prev

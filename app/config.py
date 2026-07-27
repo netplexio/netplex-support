@@ -28,7 +28,17 @@ class Settings:
     # Intake limits (anti-abuse)
     INTAKE_RATE_PER_MIN: int = int(os.environ.get("INTAKE_RATE_PER_MIN", "30"))
     WEB_INTAKE_RATE_PER_MIN: int = int(os.environ.get("WEB_INTAKE_RATE_PER_MIN", "10"))
+    # Anti-abuse ceiling for /license/verify specifically - it has no per-install budget
+    # (a box calling it has no "install_id" concept the way diagnostics does), so it gets
+    # its own, slightly more generous, IP-keyed limit (app/routers/licensing.py).
+    LICENSE_VERIFY_RATE_PER_MIN: int = int(os.environ.get("LICENSE_VERIFY_RATE_PER_MIN", "30"))
     MAX_BLOB_BYTES: int = int(os.environ.get("MAX_BLOB_BYTES", str(5 * 1024 * 1024)))
+    # Hard cap on ANY JSON API request body (app/main.py's _BodySizeLimitASGI), enforced
+    # on the actual byte stream, not just a client-declared Content-Length. Generous
+    # against the largest legitimate payload (ForwardedReport: 200+10000+16+64+32+128+
+    # 4096+256 chars of declared fields + up to 10 attachment_refs, well under 32KB even
+    # with JSON overhead) while still bounding an attacker's worst case.
+    MAX_REQUEST_BODY_BYTES: int = int(os.environ.get("MAX_REQUEST_BODY_BYTES", str(64 * 1024)))
 
     # Machine-to-machine intake auth for /diagnostics/forward. A netplex box must
     # present `Authorization: Bearer <token>` matching this. UNSET ⇒ /forward is

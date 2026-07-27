@@ -10,8 +10,6 @@ defence in depth. Email intake is a marked stub (no real inbox poller here).
 from __future__ import annotations
 
 import hmac
-import time
-from collections import defaultdict, deque
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,6 +20,7 @@ from app.auth import client_ip
 from app.config import settings
 from app.db import get_session
 from app.models import create_or_dedupe
+from app.ratelimit import rate_ok
 
 router = APIRouter(prefix="/api/v1/diagnostics", tags=["diagnostics"])
 
@@ -64,22 +63,6 @@ class WebReport(BaseModel):
     contact: Optional[str] = Field(default=None, max_length=256)
 
 
-# ── simple in-memory IP rate limiter (per-process; real deploy → Redis) ──
-_RATE_WINDOW = 60.0
-_hits: dict[str, deque] = defaultdict(deque)
-
-
-def _rate_ok(client_ip: str, limit: int) -> bool:
-    now = time.monotonic()
-    q = _hits[client_ip]
-    while q and now - q[0] > _RATE_WINDOW:
-        q.popleft()
-    if len(q) >= limit:
-        return False
-    q.append(now)
-    return True
-
-
 @router.post("/forward", status_code=202)
 async def receive_forwarded(
     report: ForwardedReport, request: Request, session: AsyncSession = Depends(get_session)
@@ -89,10 +72,26 @@ async def receive_forwarded(
     Authenticated (Bearer token, fail-closed) and rate-limited PER INSTALL so one box
     can't hammer the intake - closes the 2026-07-11 gap where this hop had neither."""
     _require_forward_auth(request)
-    # Rate-limit by install_id (falls back to the trusted-proxy-aware client IP) using
-    # the intake budget.
-    key = f"fwd:{report.install_id or client_ip(request)}"
-    if not _rate_ok(key, max(int(getattr(settings, "INTAKE_RATE_PER_MIN", 30)), 1)):
+    # SECURITY (adversarial sweep 2026-07-27, P1): install_id is a free-form,
+    # caller-supplied string with no format/ownership check (ForwardedReport.install_id,
+    # max_length=128 only) - keying the budget SOLELY on it let any holder of the shared
+    # FORWARD_INTAKE_TOKENS value (distributed to every forwarding netplex box by design,
+    # so effectively "any registered install", not a privileged secret) send a fresh
+    # random install_id on every call and get a brand-new rate-limit bucket every time,
+    # making the 30/min budget meaningless - unbounded ticket-row/DB growth from a single
+    # source. Enforce BOTH keys: the per-install_id budget (as originally intended, so one
+    # legitimate box can't drown out others) AND a per-IP budget the caller cannot
+    # cheaply rotate (unlike install_id, an IP address costs real infrastructure to
+    # change) - either ceiling being hit rejects the call.
+    ip = client_ip(request)
+    limit = max(int(getattr(settings, "INTAKE_RATE_PER_MIN", 30)), 1)
+    # Check the IP ceiling FIRST (short-circuit): it's the one an attacker can't
+    # cheaply rotate, so if it's already exhausted there's no reason to also spend a
+    # slot in the (rotatable) per-install_id bucket for a request that's being
+    # rejected anyway.
+    if not rate_ok(f"fwd:ip:{ip}", limit):
+        raise HTTPException(429, "forward rate limit exceeded - back off")
+    if not rate_ok(f"fwd:install:{report.install_id or ip}", limit):
         raise HTTPException(429, "forward rate limit exceeded - back off")
     ticket = await create_or_dedupe(
         session,
@@ -124,7 +123,7 @@ async def receive_web(
     (trusted-proxy-aware — see app/auth.py:client_ip)."""
     ip = client_ip(request)
     limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
-    if not _rate_ok(ip, limit):
+    if not rate_ok(f"web:{ip}", limit):
         raise HTTPException(429, "rate limit exceeded — slow down")
 
     ticket = await create_or_dedupe(

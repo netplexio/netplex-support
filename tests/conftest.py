@@ -49,12 +49,16 @@ async def client(engine):
 
 @pytest.fixture
 def reset_rate_limit():
-    """Clear the in-memory diagnostics rate-limit state between tests."""
-    from app.routers import diagnostics
+    """Clear the in-memory rate-limit state between tests.
 
-    diagnostics._hits.clear()
+    _hits moved from app.routers.diagnostics (a private per-module dict) to the
+    shared app.ratelimit module 2026-07-27, when app.routers.licensing started using
+    the SAME primitive for /license/verify - see app/ratelimit.py."""
+    from app import ratelimit
+
+    ratelimit._hits.clear()
     yield
-    diagnostics._hits.clear()
+    ratelimit._hits.clear()
 
 
 # /diagnostics/forward is authenticated (fail-closed). Configure a known token for
