@@ -1,16 +1,20 @@
 """Diagnostics destination — receives OPT-IN, already-redacted reports.
 
-Two live intakes:
-- POST /forward  — a box forwards an (already-redacted) report → ticket, source="forward".
-- POST /web      — PUBLIC website-submitted report → ticket, source="web" (IP rate-limited).
+Three live intakes:
+- POST /forward     — a box forwards an (already-redacted) report → ticket, source="forward".
+- POST /web         — PUBLIC website-submitted report → ticket, source="web" (IP rate-limited).
+- POST /attachment  — upload one blob (screenshot, or any future binary attachment) →
+  content-addressed descriptor, referenced by a later /forward's `attachment_refs`.
 
 Reports are expected pre-redacted on the box (local-only privacy); size/type are re-validated as
 defence in depth. Email intake is a marked stub (no real inbox poller here).
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,8 +27,16 @@ from app.db import get_session
 from app.models import create_or_dedupe
 from app.ratelimit import rate_ok
 from app.routers.licensing import _trust_store, _verify_token
+from app.storage.blobs import put_blob
 
 router = APIRouter(prefix="/api/v1/diagnostics", tags=["diagnostics"])
+
+# §5.3: the route-specific body-size exception the global 64KB cap
+# (app/main.py::_BodySizeLimitASGI, settings.MAX_REQUEST_BODY_BYTES) needs for this ONE
+# endpoint - a blob (screenshot, up to MAX_BLOB_BYTES=5MB) base64-encoded (~1.37x
+# overhead) plus JSON framing simply cannot fit in 64KB. Read by the middleware (see
+# app/main.py) by exact path match - every OTHER route keeps the tight 64KB default.
+ATTACHMENT_ROUTE_PATH = "/api/v1/diagnostics/attachment"
 
 
 def _require_forward_auth(request: Request) -> None:
@@ -53,6 +65,12 @@ class ForwardedReport(BaseModel):
     license_token: Optional[str] = Field(default=None, max_length=4096)
     contact: Optional[str] = Field(default=None, max_length=256)
     attachment_refs: list[str] = Field(default_factory=list, max_length=10)
+    # §5.3: an already-redacted health/host/labs/log-tail snapshot, JSON-serialized by
+    # the sending box (backend/shared/redact.py's scrub_secrets_deep already ran there
+    # before this ever left the box). Size-capped well under the route's raised body
+    # limit (see ATTACHMENT_ROUTE_PATH / main.py) so a single oversized bundle can't
+    # itself become a DoS vector on a route already sized up for attachments.
+    diagnostic_bundle: Optional[str] = Field(default=None, max_length=200_000)
 
 
 class WebReport(BaseModel):
@@ -120,6 +138,14 @@ async def receive_forwarded(
             verified_tier = result.tier or "associate"
             license_id_hash = hashlib.sha256(report.license_token.encode()).hexdigest()
 
+    # §5.3: attachment_refs was accepted by the schema then silently discarded here -
+    # blobs.put_blob (app/storage/blobs.py) had zero callers anywhere, and this was the
+    # one place that should have persisted a ref once uploaded via POST /attachment
+    # below. Stored as a JSON list on the ticket row (bounded to 10 refs by the
+    # Pydantic field itself); diagnostic_bundle is stored as-is (already redacted +
+    # size-capped on the sending side, re-capped here by the Pydantic max_length above).
+    attachments_json = json.dumps(report.attachment_refs) if report.attachment_refs else None
+
     ticket = await create_or_dedupe(
         session,
         kind=report.kind,
@@ -133,6 +159,8 @@ async def receive_forwarded(
         contact=report.contact,
         install_id=report.install_id,
         license_id_hash=license_id_hash,
+        attachments=attachments_json,
+        diagnostic_json=report.diagnostic_bundle,
     )
     return {
         "accepted": True,
@@ -141,6 +169,44 @@ async def receive_forwarded(
         "priority_score": ticket.priority_score,
         "kind": ticket.kind,
     }
+
+
+# ─────────────────────────── attachment (blob) upload ───────────────────────────
+
+class AttachmentUpload(BaseModel):
+    """One blob, base64-encoded. JSON (not multipart) to match this service's existing
+    intake style (every other route here is a plain JSON POST) and to keep the
+    content-length accounting in _BodySizeLimitASGI simple (one exact route-path
+    exception, see ATTACHMENT_ROUTE_PATH, rather than a second multipart-parsing path)."""
+
+    mime: str = Field(max_length=32)
+    data_b64: str = Field(max_length=8_000_000)  # ~5.8MB raw after base64 decode, capped again below
+
+
+@router.post("/attachment", status_code=201)
+async def upload_attachment(upload: AttachmentUpload, request: Request):
+    """Upload one attachment blob (screenshot or other binary) → content-addressed
+    descriptor. Same machine-to-machine auth as /forward (fail-closed) - an attachment
+    is only ever produced by a netplex box that's already forwarding a report, never a
+    standalone anonymous upload surface. The returned `sha256` is what a later
+    /forward call passes in `attachment_refs`.
+
+    §5.3: this is the caller `blobs.put_blob` (app/storage/blobs.py) never had -
+    nothing anywhere in this service invoked it. Real object-store wiring
+    (`settings.OBJECT_STORE_URL`) is still a scaffold (see that module's own TODO);
+    what changed here is that the upload SURFACE, auth, size/mime validation, and the
+    dedupe-by-content-hash guarantee are now real and reachable, not dead code.
+    """
+    _require_forward_auth(request)
+    try:
+        data = base64.b64decode(upload.data_b64, validate=True)
+    except Exception as exc:
+        raise HTTPException(400, f"data_b64 is not valid base64: {exc}") from exc
+    try:
+        descriptor = put_blob(data, upload.mime, settings.MAX_BLOB_BYTES)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return descriptor
 
 
 @router.post("/web", status_code=202)

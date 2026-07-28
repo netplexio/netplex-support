@@ -37,13 +37,32 @@ class TicketView(BaseModel):
     priority_score: Optional[int] = None
     fixed_in_version: Optional[str] = None
     source: str = "web"
+    # §5.3 (2026-07-28): previously MISSING here entirely - a bundle/attachment could
+    # be persisted on the row (models.py) but was invisible through every admin-facing
+    # endpoint, since this view never surfaced either column. has_diagnostic_bundle /
+    # attachment_refs make the transport actually USEFUL to an admin, not just present
+    # in the database. The full diagnostic_json text is intentionally NOT inlined here
+    # (it can be tens of KB - triage_queue lists every open ticket at once) - a
+    # follow-up per-ticket detail endpoint is the natural place for the full bundle;
+    # this flag is enough to tell an admin scanning the queue that one exists.
+    has_diagnostic_bundle: bool = False
+    attachment_refs: list[str] = []
 
     @classmethod
     def of(cls, t: Ticket) -> "TicketView":
+        import json as _json
+        refs: list[str] = []
+        if t.attachments:
+            try:
+                refs = _json.loads(t.attachments)
+            except (ValueError, TypeError):
+                refs = []
         return cls(
             id=t.id, kind=t.kind, status=t.status, severity=t.severity, title=t.title,
             occurrences=t.occurrences, reporter_tier=t.reporter_tier,
             priority_score=t.priority_score, fixed_in_version=t.fixed_in_version, source=t.source,
+            has_diagnostic_bundle=bool(t.diagnostic_json),
+            attachment_refs=refs,
         )
 
 
@@ -73,3 +92,34 @@ async def get_ticket_route(ticket_id: str, session: AsyncSession = Depends(get_s
     if t is None:
         raise HTTPException(404, "ticket not found")
     return TicketView.of(t)
+
+
+@router.get("/{ticket_id}/diagnostic", dependencies=[Depends(require_admin)])
+async def get_ticket_diagnostic(ticket_id: str, session: AsyncSession = Depends(get_session)):
+    """Admin-only: the FULL diagnostic bundle attached to a ticket (§5.3).
+
+    Deliberately separate from the plain ticket view (TicketView.of only exposes a
+    `has_diagnostic_bundle` flag + attachment refs, kept small since the triage queue
+    lists every open ticket at once) - this is the "click through to see it" detail
+    endpoint an admin needs once has_diagnostic_bundle says one exists. Never public:
+    even though the bundle is already redacted before it reaches this server, it is
+    real operational detail about a customer's host (CPU/RAM/log lines), not a public
+    payload.
+    """
+    t = await get_ticket(session, ticket_id)
+    if t is None:
+        raise HTTPException(404, "ticket not found")
+    import json as _json
+    diagnostic_bundle = None
+    if t.diagnostic_json:
+        try:
+            diagnostic_bundle = _json.loads(t.diagnostic_json)
+        except (ValueError, TypeError):
+            diagnostic_bundle = t.diagnostic_json  # not JSON-shaped; return raw text as-is
+    attachment_refs: list[str] = []
+    if t.attachments:
+        try:
+            attachment_refs = _json.loads(t.attachments)
+        except (ValueError, TypeError):
+            attachment_refs = []
+    return {"id": t.id, "diagnostic_bundle": diagnostic_bundle, "attachment_refs": attachment_refs}
