@@ -34,6 +34,19 @@ class Settings:
     # connects from localhost — "127.0.0.1") when deployed behind it. See app/auth.py.
     TRUSTED_PROXIES: str = os.environ.get("TRUSTED_PROXIES", "")
 
+    # P3 tickets chain (2026-07-28): browser origins allowed to call the PUBLIC intake
+    # routes (/diagnostics/web) cross-origin — needed so the netplex.io marketing site's
+    # support form can fetch() this endpoint directly instead of only offering a mailto:
+    # fallback with no ticket tracking at all. Comma-separated, no wildcard by design (a
+    # bearer-gated route staying unreachable to a browser with no token is the real
+    # protection; this only widens which origins may READ a response from the public,
+    # already-rate-limited routes — but scoping it to real domains, not "*", keeps intent
+    # explicit and auditable). Empty disables CORS entirely (fetch from another origin
+    # fails; server-to-server calls are unaffected — CORS is a browser-only concept).
+    WEB_INTAKE_CORS_ORIGINS: str = os.environ.get(
+        "WEB_INTAKE_CORS_ORIGINS", "https://netplex.io,https://www.netplex.io"
+    )
+
     # Intake limits (anti-abuse)
     INTAKE_RATE_PER_MIN: int = int(os.environ.get("INTAKE_RATE_PER_MIN", "30"))
     WEB_INTAKE_RATE_PER_MIN: int = int(os.environ.get("WEB_INTAKE_RATE_PER_MIN", "10"))
@@ -55,6 +68,16 @@ class Settings:
     # (the box-forward hop was previously unauthenticated). Comma-separated allows
     # rotating tokens (old+new valid during a rollover).
     FORWARD_INTAKE_TOKENS: str = os.environ.get("FORWARD_INTAKE_TOKENS", "")
+
+    # P3 tickets chain (2026-07-28): machine-to-machine auth for /diagnostics/email -
+    # same fail-closed, comma-separated Bearer-token scheme as FORWARD_INTAKE_TOKENS
+    # above. support@netplex.io mail itself carries no authentication of any kind (a
+    # From: header is trivially spoofable), so this is the ONLY trust boundary: the
+    # caller must be the mail-forwarding worker/webhook that holds this secret, not
+    # "whoever the email claims to be from". UNSET ⇒ the route is DISABLED (503) -
+    # replaces the previous dead ingest_email_stub (a function that raised
+    # NotImplementedError and was never even wired to a route at all).
+    EMAIL_INTAKE_SECRETS: str = os.environ.get("EMAIL_INTAKE_SECRETS", "")
 
     # Admin/operator auth for the privileged triage surface (/tickets/admin/*). Same
     # fail-closed, comma-separated, Bearer-token scheme as the intake token. UNSET ⇒ the
