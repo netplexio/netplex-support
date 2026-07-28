@@ -29,7 +29,17 @@ app = FastAPI(title="netplex-support", version=__version__, lifespan=lifespan)
 
 class _BodySizeLimitASGI:
     """Enforce settings.MAX_REQUEST_BODY_BYTES on the ACTUAL byte stream of every
-    request, application-wide.
+    request, application-wide - EXCEPT the one route named in
+    app.routers.diagnostics.ATTACHMENT_ROUTE_PATH, which needs a larger cap.
+
+    §5.3 (2026-07-28): POST /api/v1/diagnostics/attachment carries a base64-encoded
+    blob (up to settings.MAX_BLOB_BYTES, default 5MB) - base64 alone is ~1.37x the raw
+    size, so even a blob AT the intended limit cannot fit in the 64KB default that
+    protects every other (small, fixed-shape) route here. This is a per-route
+    ALLOWLIST exception (one exact path, checked by string equality, not a wildcard or
+    a prefix match), not a global raise of the cap - every other route, including
+    /diagnostics/forward and /license/verify (the routes the 2026-07-27 adversarial
+    sweep found exploitable via an oversized body), keeps the original tight ceiling.
 
     SECURITY (adversarial sweep 2026-07-27, P1): this service had NO request-size
     limit anywhere - not in the app, not in the Dockerfile, not in docker-compose (a
@@ -66,11 +76,13 @@ class _BodySizeLimitASGI:
             await self.app(scope, receive, send)
             return
 
+        cap = self._cap_for_path(scope.get("path") or "")
+
         headers = dict(scope.get("headers") or [])
         cl = headers.get(b"content-length")
         if cl is not None:
             try:
-                if int(cl) > settings.MAX_REQUEST_BODY_BYTES:
+                if int(cl) > cap:
                     await _send_json(send, 413, {"detail": "request body too large"})
                     return
             except ValueError:
@@ -84,11 +96,25 @@ class _BodySizeLimitASGI:
             message = await receive()
             if message["type"] == "http.request":
                 total += len(message.get("body") or b"")
-                if total > settings.MAX_REQUEST_BODY_BYTES:
+                if total > cap:
                     raise HTTPException(status_code=413, detail="request body too large")
             return message
 
         await self.app(scope, limited_receive, send)
+
+    @staticmethod
+    def _cap_for_path(path: str) -> int:
+        """The route-specific exception, resolved lazily (import-time-safe: this
+        module and app.routers.diagnostics would otherwise need each other, and
+        diagnostics.py already imports app.main indirectly via the app instance at
+        router-include time)."""
+        from app.routers.diagnostics import ATTACHMENT_ROUTE_PATH
+
+        if path == ATTACHMENT_ROUTE_PATH:
+            # base64 overhead (~1.37x) on top of MAX_BLOB_BYTES, plus JSON framing —
+            # generous but still bounded, never unlimited.
+            return int(settings.MAX_BLOB_BYTES * 2)
+        return settings.MAX_REQUEST_BODY_BYTES
 
 
 async def _send_json(send, status: int, payload: dict) -> None:

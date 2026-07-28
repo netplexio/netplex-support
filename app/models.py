@@ -66,6 +66,16 @@ class Ticket(Base):
     priority_score: Mapped[int] = mapped_column(Integer, default=0)
     github_issue: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     fixed_in_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # §5.3 (2026-07-28): bundle transport. `attachments` is a JSON-encoded list of blob
+    # descriptors ({sha256,url,mime,bytes,redacted} - see app/storage/blobs.py) - was
+    # ALWAYS discarded before (ForwardedReport.attachment_refs was accepted, never
+    # persisted). `diagnostic_json` is a JSON-encoded, ALREADY-REDACTED health/host/
+    # labs/log-tail snapshot (mirrors docs/platform/support-system.md §3.1's
+    # documented-but-never-implemented `diagnostic_json JSONB` column) - the box
+    # redacts before sending; this server re-validates size/shape as defence in depth,
+    # it does not itself scrub (it has no redaction rules of its own to apply).
+    attachments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    diagnostic_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
@@ -75,18 +85,41 @@ class Ticket(Base):
 # ───────────────────────────── async store ─────────────────────────────
 
 async def create_or_dedupe(session: AsyncSession, **fields) -> Ticket:
-    """Create a ticket, or — if `fingerprint` matches an OPEN ticket — bump its occurrences.
+    """Create a ticket, or — if `fingerprint` matches an OPEN ticket **from the same
+    source** — bump its occurrences.
 
     Recomputes priority_score on every (severity, occurrences, tier). Returns the live Ticket.
+
+    SECURITY (§5.3, 2026-07-28): dedupe is now scoped to `(fingerprint, source)`, not
+    `fingerprint` alone. `POST /diagnostics/web` is PUBLIC and unauthenticated, and its
+    `fingerprint` is entirely caller-chosen (WebReport.fingerprint, no server-side
+    computation, no ownership check) - with the OLD fingerprint-only query, anyone
+    could pre-POST a `source=web` ticket at a fingerprint value they expect a REAL
+    crash to use later (crash fingerprints are a deterministic
+    sha1(normalized_message + top_3_frames) over a known, guessable bug signature),
+    and every subsequent authenticated `source=forward` occurrence of that real crash
+    would silently merge into the attacker's pre-seeded ticket - inheriting whatever
+    title/body/contact the attacker planted, and inflating occurrences/priority_score
+    with fabricated history. Scoping the match to the SAME source closes this: an
+    anonymous `web` submission can only ever dedupe against other anonymous `web`
+    submissions (still real work, still rate-limited per-IP, but can never poison an
+    authenticated `forward` ticket's identity), and a `forward` submission (from an
+    authenticated, token-holding box) can only dedupe against other `forward`
+    submissions - exactly the "repeated identical report" case dedupe exists for.
     """
     fingerprint = fields.get("fingerprint")
     severity = fields.get("severity", "s2_broken")
     tier = fields.get("reporter_tier", "associate")
+    source = fields.get("source", "web")
 
     if fingerprint:
         stmt = (
             select(Ticket)
-            .where(Ticket.fingerprint == fingerprint, Ticket.status.in_(OPEN_STATES))
+            .where(
+                Ticket.fingerprint == fingerprint,
+                Ticket.source == source,
+                Ticket.status.in_(OPEN_STATES),
+            )
             .order_by(Ticket.first_seen.asc())
             .limit(1)
         )
@@ -123,6 +156,8 @@ async def create_or_dedupe(session: AsyncSession, **fields) -> Ticket:
         priority_score=priority_score(severity, fields.get("occurrences", 1), tier),
         github_issue=fields.get("github_issue"),
         fixed_in_version=fields.get("fixed_in_version"),
+        attachments=fields.get("attachments"),
+        diagnostic_json=fields.get("diagnostic_json"),
     )
     session.add(ticket)
     await session.commit()
