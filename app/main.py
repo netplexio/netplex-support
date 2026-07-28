@@ -11,6 +11,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import settings
@@ -25,6 +26,24 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="netplex-support", version=__version__, lifespan=lifespan)
+
+# P3 tickets chain (2026-07-28): the public /diagnostics/web intake had no CORS at all,
+# so a browser fetch() from the netplex.io marketing site (a different origin) was
+# silently blocked by the browser regardless of the route's own auth/rate-limit posture
+# - the only way the site could reach support was a bare mailto: link with no ticket
+# tracking. Scoped to real, named origins (WEB_INTAKE_CORS_ORIGINS), not "*" - CORS only
+# controls which origins a BROWSER may read a response FROM, so this does not loosen
+# any actual auth: bearer-token-gated routes (/forward, /admin/*) stay unreachable to a
+# browser that doesn't hold the token regardless of origin.
+_cors_origins = [o.strip() for o in settings.WEB_INTAKE_CORS_ORIGINS.split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+        allow_credentials=False,
+    )
 
 
 class _BodySizeLimitASGI:

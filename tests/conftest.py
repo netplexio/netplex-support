@@ -70,6 +70,11 @@ FORWARD_HEADERS = {"Authorization": f"Bearer {TEST_FORWARD_TOKEN}"}
 TEST_ADMIN_TOKEN = "test-admin-token"
 ADMIN_HEADERS = {"Authorization": f"Bearer {TEST_ADMIN_TOKEN}"}
 
+# /diagnostics/email is authenticated (fail-closed) — P3 tickets chain, 2026-07-28.
+# Same pattern as FORWARD_INTAKE_TOKENS/ADMIN_API_TOKENS above.
+TEST_EMAIL_TOKEN = "test-email-token"
+EMAIL_HEADERS = {"Authorization": f"Bearer {TEST_EMAIL_TOKEN}"}
+
 
 @pytest.fixture(autouse=True)
 def _configure_forward_token():
@@ -89,3 +94,13 @@ def _configure_admin_token():
     settings.ADMIN_API_TOKENS = TEST_ADMIN_TOKEN
     yield
     settings.ADMIN_API_TOKENS = prev
+
+
+@pytest.fixture(autouse=True)
+def _configure_email_token():
+    from app.config import settings
+
+    prev = settings.EMAIL_INTAKE_SECRETS
+    settings.EMAIL_INTAKE_SECRETS = TEST_EMAIL_TOKEN
+    yield
+    settings.EMAIL_INTAKE_SECRETS = prev

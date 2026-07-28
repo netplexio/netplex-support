@@ -235,9 +235,72 @@ async def receive_web(
     return {"accepted": True, "ticket_id": ticket.id, "occurrences": ticket.occurrences}
 
 
-# ─────────────────────────── email intake (STUB) ───────────────────────────
-# STUB ONLY — no real inbox poller. A production deployment would run an out-of-band worker
-# (IMAP/SES inbound webhook) that parses support@ mail, redacts, and calls create_or_dedupe with
-# source="email". Intentionally not built here (no mailbox credentials in this repo).
-async def ingest_email_stub(*args, **kwargs):  # pragma: no cover - intentional stub
-    raise NotImplementedError("email intake is a stub; wire an IMAP/SES worker out-of-band")
+# ─────────────────────────── email intake ───────────────────────────────────
+# P3 tickets chain (2026-07-28): replaces the previous dead stub (ingest_email_stub
+# raised NotImplementedError and, worse, was never even registered as a route - no
+# amount of retrying would have reached it). This is a REAL, working, fail-closed
+# endpoint - the same shape as /forward and /web above, ingesting via the same
+# create_or_dedupe(source="email", ...) the model has always documented as a valid
+# source (models.py: "web|email|forward|app") but never had a single caller for.
+#
+# Deployment note (genuine external blocker, distinct from the code gap this closes):
+# this endpoint is ready today, but nothing calls it until support@netplex.io's actual
+# mailbox is configured to forward inbound mail here. That is Khaled's mail-provider
+# choice (Mailgun inbound routes / SES inbound + Lambda / Postmark inbound webhook) +
+# that provider's credentials - neither exists in this repo, and no autonomous agent
+# can provision a real mailbox or its DNS/MX records. Once a provider is chosen, its
+# own small transform step (or a thin bridge worker, if its native webhook shape needs
+# normalizing) calls THIS endpoint with EmailReport below, authenticated by
+# EMAIL_INTAKE_SECRETS - deliberately provider-agnostic rather than coupling this
+# server to one vendor's native payload shape.
+
+
+class EmailReport(BaseModel):
+    """Normalized inbound-email payload - the mail-forwarding provider/worker's own
+    transform step produces this, whatever its native webhook shape is."""
+    from_email: str = Field(max_length=256)
+    subject: str = Field(default="", max_length=200)
+    body: str = Field(default="", max_length=10000)
+
+
+def _require_email_auth(request: Request) -> None:
+    """Fail-CLOSED, same pattern as _require_forward_auth above: if no secret is
+    configured, the endpoint is disabled entirely (503) rather than accepting
+    anonymous mail. support@netplex.io mail carries no authentication of its own (a
+    From: header is trivially spoofable) - the shared secret, held only by the
+    mail-forwarding worker, is the ONLY trust boundary here."""
+    configured = [t.strip() for t in settings.EMAIL_INTAKE_SECRETS.split(",") if t.strip()]
+    if not configured:
+        raise HTTPException(503, "email intake is not configured on this server")
+    auth = request.headers.get("authorization", "")
+    presented = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not presented or not any(hmac.compare_digest(presented, t) for t in configured):
+        raise HTTPException(401, "invalid or missing intake token")
+
+
+@router.post("/email", status_code=202)
+async def receive_email(
+    report: EmailReport, request: Request, session: AsyncSession = Depends(get_session)
+):
+    """Ingest one inbound support@netplex.io message → create/dedupe a ticket
+    (source=email). IP-rate-limited on top of the auth token (same reasoning as
+    /web: a misconfigured forwarding worker retrying a bounce shouldn't be able to
+    flood ticket creation just because it holds a valid secret)."""
+    _require_email_auth(request)
+    ip = client_ip(request)
+    limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
+    if not rate_ok(f"email:{ip}", limit):
+        raise HTTPException(429, "rate limit exceeded — slow down")
+
+    ticket = await create_or_dedupe(
+        session,
+        kind="bug",
+        title=report.subject or "(no subject)",
+        body=report.body,
+        severity="s3_degraded",
+        source="email",
+        reporter_tier="associate",
+        identified=True,
+        contact=report.from_email,
+    )
+    return {"accepted": True, "ticket_id": ticket.id, "occurrences": ticket.occurrences}
