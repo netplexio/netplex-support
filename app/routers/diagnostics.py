@@ -62,6 +62,14 @@ class ForwardedReport(BaseModel):
     # tier/identity — present only for identified (paid) tiers
     reporter_tier: str = Field(default="associate", max_length=32)
     install_id: Optional[str] = Field(default=None, max_length=128)
+    # T13a (2026-08-30 war-room): the box's OWN local ticket id (its "NPX-..." receipt,
+    # minted by netplex/backend/api-gateway/routers/ticket_model.py `_new_id()`) - mirrors
+    # netplex-control's `tickets.origin_local_id` field/precedent (backend/app/models.py).
+    # Was previously entirely absent here, so a forwarded report landing on this side
+    # could only be resolved back to the reporting box via (fingerprint, install_id) -
+    # ambiguous once a box had filed more than one report. Optional/max_length=32 to
+    # match the column and the box-local id's own format (max seen: "NPX-" + 12 hex).
+    origin_local_id: Optional[str] = Field(default=None, max_length=32)
     license_token: Optional[str] = Field(default=None, max_length=4096)
     contact: Optional[str] = Field(default=None, max_length=256)
     attachment_refs: list[str] = Field(default_factory=list, max_length=10)
@@ -158,6 +166,7 @@ async def receive_forwarded(
         identified=bool(report.contact),
         contact=report.contact,
         install_id=report.install_id,
+        origin_local_id=report.origin_local_id,
         license_id_hash=license_id_hash,
         attachments=attachments_json,
         diagnostic_json=report.diagnostic_bundle,
@@ -168,6 +177,7 @@ async def receive_forwarded(
         "occurrences": ticket.occurrences,
         "priority_score": ticket.priority_score,
         "kind": ticket.kind,
+        "origin_local_id": ticket.origin_local_id,
     }
 
 

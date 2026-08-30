@@ -16,7 +16,7 @@ async def test_get_ticket_roundtrip_and_404(client):
     assert got.status_code == 200
     assert got.json()["id"] == tid
 
-    missing = await c.get("/api/v1/tickets/NPX-NOPE00")
+    missing = await c.get("/api/v1/tickets/SUP-NOPE00")
     assert missing.status_code == 404
 
 

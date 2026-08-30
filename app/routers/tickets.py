@@ -10,13 +10,15 @@ carries the box's local id (`tickets.origin_local_id`), the only side with a cha
 to the box (the heartbeat response's `ticket_updates`), and the only side sitting next to
 the licence/account/installation/log rows that make a ticket diagnosable.
 
-Two known consequences, still open (rows T13a/T13b in netplex's war-room doc):
-  * `new_ticket_id()` below mints `"NPX-" + token_hex(6)` — byte-for-byte the same format
-    the box mints for its own LOCAL receipt, from a different database. The same-looking
-    id can therefore mean two different rows and nothing can tell you which.
-  * `ForwardedReport` has no field for the box's local id, so a forwarded report arrives
-    here with no way back to the row the reporter was actually shown.
-Until those land, resolve an ambiguous `NPX-` id by `fingerprint` + `install_id`.
+Two known consequences, fixed 2026-08-30 (rows T13a/T13b in netplex's war-room doc):
+  * `new_ticket_id()` (app/models.py) used to mint `"NPX-" + token_hex(6)` —
+    byte-for-byte the same format the box mints for its own LOCAL receipt, from a
+    different database. Now mints `"SUP-" + token_hex(6)`: this repo's own ids are
+    visually distinguishable from the box-local id (still "NPX-...") at a glance.
+  * `ForwardedReport.origin_local_id` now carries the box's own local id through to the
+    `tickets.origin_local_id` column (indexed) — resolve it via
+    `app.models.get_ticket_by_origin_local_id`, no longer only by `fingerprint` +
+    `install_id`.
 
 Schema mirrors netplex/docs/platform/support-system.md §3.1. priority_score = sev × occ × tier.
 """
@@ -36,6 +38,7 @@ from app.models import (  # re-exported for callers/tests
     Ticket,
     admin_queue,
     get_ticket,
+    get_ticket_by_origin_local_id,
     priority_score,
 )
 
@@ -55,6 +58,9 @@ class TicketView(BaseModel):
     priority_score: Optional[int] = None
     fixed_in_version: Optional[str] = None
     source: str = "web"
+    # T13a: the box's own local ticket id, when the report carried one (forward-sourced
+    # tickets only — web/email intake has no box to attribute).
+    origin_local_id: Optional[str] = None
     # §5.3 (2026-07-28): previously MISSING here entirely - a bundle/attachment could
     # be persisted on the row (models.py) but was invisible through every admin-facing
     # endpoint, since this view never surfaced either column. has_diagnostic_bundle /
@@ -79,6 +85,7 @@ class TicketView(BaseModel):
             id=t.id, kind=t.kind, status=t.status, severity=t.severity, title=t.title,
             occurrences=t.occurrences, reporter_tier=t.reporter_tier,
             priority_score=t.priority_score, fixed_in_version=t.fixed_in_version, source=t.source,
+            origin_local_id=t.origin_local_id,
             has_diagnostic_bundle=bool(t.diagnostic_json),
             attachment_refs=refs,
         )
@@ -92,6 +99,24 @@ async def triage_queue(limit: int = 100, session: AsyncSession = Depends(get_ses
     `TODO: admin auth` and handed the full triage queue to any anonymous caller (W15.4)."""
     rows = await admin_queue(session, limit=limit)
     return {"count": len(rows), "tickets": [TicketView.of(t).model_dump() for t in rows]}
+
+
+@router.get(
+    "/admin/by-origin/{origin_local_id}",
+    response_model=TicketView,
+    dependencies=[Depends(require_admin)],
+)
+async def get_ticket_by_origin_route(
+    origin_local_id: str, session: AsyncSession = Depends(get_session)
+):
+    """T13a: resolve a forwarded report back to the reporting box's own row by the
+    box-local id it was actually shown — the unambiguous lookup that replaces the old
+    fingerprint+install_id-only resolution. Admin-only, same posture as the triage
+    queue: this is operational detail, not a public surface."""
+    t = await get_ticket_by_origin_local_id(session, origin_local_id)
+    if t is None:
+        raise HTTPException(404, "no ticket for that origin_local_id")
+    return TicketView.of(t)
 
 
 @router.get("/claim/{claim_code}", response_model=TicketView)

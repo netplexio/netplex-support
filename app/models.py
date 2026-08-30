@@ -30,13 +30,25 @@ def priority_score(severity: str, occurrences: int, tier: str) -> int:
 
 
 def new_ticket_id() -> str:
-    """Format 'NPX-XXXXXXXXXXXX' (12 uppercase hex chars = 48 bits).
+    """Format 'SUP-XXXXXXXXXXXX' (12 uppercase hex chars = 48 bits).
 
     Widened from 24 bits (F-S3): 24 bits is both a collision risk (birthday bound ~4k
     tickets) and small enough to enumerate against the unauthenticated GET /tickets/{id}.
-    48 bits (still within the String(16) id column: 'NPX-' + 12 = 16) makes both
-    infeasible."""
-    return "NPX-" + secrets.token_hex(6).upper()
+    48 bits (still within the String(16) id column: 'SUP-' + 12 = 16) makes both
+    infeasible.
+
+    Prefix changed from 'NPX-' to 'SUP-' (2026-08-30, war-room T13b): this repo is a
+    LEGACY INTAKE, not the ticket authority (netplex-control is, see ECOSYSTEM.md
+    "TICKET IDENTITY" / T13) - it mints ids only for its own local rows, never
+    pretending to be the box's receipt. Before this change, `new_ticket_id()` here and
+    the box's own local id (netplex/backend/api-gateway/routers/ticket_model.py
+    `_new_id()`) minted the EXACT SAME "NPX-" + 12-hex-char format from two entirely
+    different databases - a same-looking id could mean two different rows and nothing
+    could tell them apart. 'SUP-' makes a netplex-support id and a box-local netplex
+    id visually distinguishable at a glance, closing that ambiguity without touching
+    the box-local format (which stays 'NPX-') or netplex-control's authority format
+    ('T-NNNNNN', backend/app/tickets.py) - neither of those was ever the problem."""
+    return "SUP-" + secrets.token_hex(6).upper()
 
 
 def _utcnow() -> datetime:
@@ -61,6 +73,15 @@ class Ticket(Base):
     identified: Mapped[bool] = mapped_column(Boolean, default=False)
     contact: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     install_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # T13a (2026-08-30 war-room): the box's OWN local ticket id (the "NPX-..." id the
+    # reporter was actually shown, minted by netplex/backend/api-gateway/routers/
+    # ticket_model.py `_new_id()`) - mirrors netplex-control's `tickets.origin_local_id`
+    # (backend/app/models.py) so the same box-local id resolves to a row on EITHER
+    # upstream, not just the authoritative one. Before this field existed, a forwarded
+    # report could only be resolved back to the reporting box via
+    # (fingerprint, install_id) - ambiguous once a box had filed more than one report.
+    # Indexed: this is exactly the lookup key get_ticket_by_origin_local_id uses.
+    origin_local_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
     license_id_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     scope_path: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     priority_score: Mapped[int] = mapped_column(Integer, default=0)
@@ -151,6 +172,7 @@ async def create_or_dedupe(session: AsyncSession, **fields) -> Ticket:
         identified=fields.get("identified", False),
         contact=fields.get("contact"),
         install_id=fields.get("install_id"),
+        origin_local_id=fields.get("origin_local_id"),
         license_id_hash=fields.get("license_id_hash"),
         scope_path=fields.get("scope_path"),
         priority_score=priority_score(severity, fields.get("occurrences", 1), tier),
@@ -169,6 +191,22 @@ async def get_ticket(session: AsyncSession, ticket_id: str) -> Optional[Ticket]:
     return (
         await session.execute(select(Ticket).where(Ticket.id == ticket_id))
     ).scalar_one_or_none()
+
+
+async def get_ticket_by_origin_local_id(
+    session: AsyncSession, origin_local_id: str
+) -> Optional[Ticket]:
+    """T13a: resolve a forwarded report back to the reporting box's own row, keyed on
+    the box-local id it was actually shown — unambiguous even when a box has filed more
+    than one report (unlike the old fingerprint+install_id-only resolution). Most
+    recent first, matching create_or_dedupe's own dedupe-then-create ordering."""
+    stmt = (
+        select(Ticket)
+        .where(Ticket.origin_local_id == origin_local_id)
+        .order_by(Ticket.first_seen.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
 
 
 async def admin_queue(session: AsyncSession, limit: int = 100) -> list[Ticket]:
