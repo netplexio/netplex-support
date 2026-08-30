@@ -29,7 +29,7 @@ async def test_forward_creates_ticket(client):
     assert r.status_code == 202
     body = r.json()
     assert body["accepted"] is True
-    assert body["ticket_id"].startswith("NPX-")
+    assert body["ticket_id"].startswith("SUP-")  # T13b: this repo's own id format
     assert body["occurrences"] == 1
     # s1_crash(16) × occ(1) × associate(1) = 16 - the self-asserted "architect" claim
     # (which would have been 16×1×4=64) is NOT trusted without a verified token.

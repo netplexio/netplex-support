@@ -60,7 +60,7 @@ async def test_email_intake_creates_real_ticket(client):
     assert r.status_code == 202, r.text
     body = r.json()
     assert body["accepted"] is True
-    assert body["ticket_id"].startswith("NPX-")
+    assert body["ticket_id"].startswith("SUP-")  # T13b: this repo's own id format
 
     from sqlalchemy import select
     from app.models import Ticket
