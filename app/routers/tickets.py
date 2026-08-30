@@ -1,4 +1,22 @@
-"""Ticket / triage subsystem — the authoritative ticket store (source of truth).
+"""Ticket / triage subsystem — a legacy INTAKE, not the ticket authority.
+
+This docstring used to say "the authoritative ticket store (source of truth)". That was
+decided against on 2026-08-30 (Wave 18.6 T13): **netplex-control owns ticket identity**,
+and its `T-NNNNNN` is the id netplex answers to. See the "TICKET IDENTITY" section of
+ECOSYSTEM.md for the reasoning and the table of who mints what.
+
+Short version of why it is not this repo: netplex-control is the only side that already
+carries the box's local id (`tickets.origin_local_id`), the only side with a channel back
+to the box (the heartbeat response's `ticket_updates`), and the only side sitting next to
+the licence/account/installation/log rows that make a ticket diagnosable.
+
+Two known consequences, still open (rows T13a/T13b in netplex's war-room doc):
+  * `new_ticket_id()` below mints `"NPX-" + token_hex(6)` — byte-for-byte the same format
+    the box mints for its own LOCAL receipt, from a different database. The same-looking
+    id can therefore mean two different rows and nothing can tell you which.
+  * `ForwardedReport` has no field for the box's local id, so a forwarded report arrives
+    here with no way back to the row the reporter was actually shown.
+Until those land, resolve an ambiguous `NPX-` id by `fingerprint` + `install_id`.
 
 Schema mirrors netplex/docs/platform/support-system.md §3.1. priority_score = sev × occ × tier.
 """

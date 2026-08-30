@@ -32,6 +32,14 @@ services:
       # keep old+new valid during a rotation.
       - FORWARD_INTAKE_TOKENS=${FORWARD_INTAKE_TOKENS:?set a machine intake token (openssl rand -base64 32)}
       - ADMIN_API_TOKENS=${ADMIN_API_TOKENS:?set an admin/triage token (openssl rand -base64 32)}
+      # Same fail-closed scheme, for POST /api/v1/diagnostics/email (inbound
+      # support@netplex.io mail). Until 2026-08-30 this line did not exist, so
+      # app/config.py read EMAIL_INTAKE_SECRETS from an environment the container never
+      # received: setting it in .env changed nothing and the route answered 503 "email
+      # intake is not configured" on the deployed box no matter what. Left unset here
+      # (no `:?`) because email intake is genuinely optional — the route stays disabled
+      # until a secret is supplied, which is the documented fail-closed behaviour.
+      - EMAIL_INTAKE_SECRETS=${EMAIL_INTAKE_SECRETS:-}
       # Public keys for the license/release subsystems. The PRIVATE keys never touch
       # this server — they are generated + kept OFFLINE (docs/KEY-GENERATION-RUNBOOK.md).
       # LICENSE_PUBLIC_KEY is set live (2026-07-27, key_id f98ca2703f3ed827). Until
@@ -50,6 +58,24 @@ services:
       - INTAKE_RATE_PER_MIN=${INTAKE_RATE_PER_MIN:-30}
       - WEB_INTAKE_RATE_PER_MIN=${WEB_INTAKE_RATE_PER_MIN:-10}
       - MAX_BLOB_BYTES=${MAX_BLOB_BYTES:-5242880}
+      # The remaining four settings app/config.py reads. Each was previously
+      # unreachable in the container for the same reason as EMAIL_INTAKE_SECRETS above:
+      # config.py read it, compose never passed it, so the code default was the ONLY
+      # value the deployed service could ever have and .env was silently ignored. The
+      # defaults below are deliberately identical to config.py's, so this passthrough
+      # changes nothing on its own — it only makes .env able to change it.
+      #
+      # Browser origins allowed to read a response from the public /diagnostics/web
+      # routes. Empty string disables CORS entirely.
+      - WEB_INTAKE_CORS_ORIGINS=${WEB_INTAKE_CORS_ORIGINS:-https://netplex.io,https://www.netplex.io}
+      # IP-keyed anti-abuse ceiling for /license/verify.
+      - LICENSE_VERIFY_RATE_PER_MIN=${LICENSE_VERIFY_RATE_PER_MIN:-30}
+      # Hard cap on any JSON API request body (app/main.py's _BodySizeLimitASGI).
+      - MAX_REQUEST_BODY_BYTES=${MAX_REQUEST_BODY_BYTES:-65536}
+      # S3-compatible blob store. app/storage/blobs.py is still a scaffold (its own
+      # TODO), so this is inert today — passed through now so turning it on later is a
+      # .env edit and not another "why is my setting ignored?" hunt.
+      - OBJECT_STORE_URL=${OBJECT_STORE_URL:-}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
