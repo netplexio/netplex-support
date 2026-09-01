@@ -14,9 +14,20 @@ where tickets are triaged, and where signed releases/updates are built and publi
 | Subsystem | Purpose | Status |
 |---|---|---|
 | **Diagnostics destination** | receives opt-in forwarded crash/bug reports over TLS; stores tickets + redacted screenshot blobs | scaffold |
-| **Ticket / triage** | the authoritative ticket DB + triage console; mirrors selected tickets to GitHub Issues | scaffold |
+| **Ticket / triage** | a legacy intake queue for forwarded crash telemetry + the public web form; NOT the ticket authority (see below) | scaffold |
 | **Licensing authority** | verifies signed license tokens (tier, expiry); registers tokens minted offline; the source of tier truth | **live** — verify + register; `/issue` permanently 🔴 gated (key custody) |
 | **Release / update authority** | receives + verifies + serves signed release manifests; offline signing pipeline for whoever holds the signing key | **live** — upload + serve; `/publish` (server-side signing) permanently 🔴 gated (key custody) |
+
+**NPX-481 correction (2026-09-01):** the "authoritative ticket DB" line above was written before
+the 2026-08-30 war-room decision (Wave 18.6 T13, `netplex/ECOSYSTEM.md` "TICKET IDENTITY") assigned
+ticket authority to `netplex-control` instead — it owns the `T-NNNNNN` id, the sync-back channel to
+the reporting box, and the account/licence/installation context a ticket needs to be diagnosable.
+This repo's `tickets` table holds two things that never reach `netplex-control`: an anonymized,
+opt-in crash-telemetry mirror (source="forward", cross-referenced to the box's local receipt via
+`origin_local_id`) and public, pre-account submissions from `netplex.io/support` (source="web").
+Neither is a customer-facing "My Reports" list, so this is a deliberate two-store split by purpose,
+not the "3 duplicate ticket DBs" defect the id-collision bug (T13a/T13b, fixed 2026-08-30) used to be —
+see `app/routers/tickets.py`'s module docstring for the up-to-date picture.
 
 ## Boundary rules (non-negotiable)
 
