@@ -1,4 +1,4 @@
-# netplex-support — architecture (receiving end)
+# netplex-support - architecture (receiving end)
 
 ```
                  outbound-only TLS 1.3 (boxes initiate; we never dial in)
@@ -44,13 +44,13 @@ tier_weight) and `sla_due`. "Open as GitHub issue" mirrors a ticket (text + blob
 ### 3. Licensing authority
 - **Verify (open to build now):** validate a presented signed license token → return tier, expiry,
   entitlements. Stateless, key-public.
-- **Issue (🔴 gated):** mint signed license tokens. Holds the private license key — gated on
+- **Issue (🔴 gated):** mint signed license tokens. Holds the private license key - gated on
   key-custody blocker.
 
-### 4. Release / update authority — 🔴 GATED
+### 4. Release / update authority - 🔴 GATED
 Builds the release manifest, **ed25519-signs** it, pins per-service image digests, runs the
 private registry, emits offline `.tar` bundles. Holds the private signing key. **Do not implement
-until [SECURITY-BLOCKERS.md](SECURITY-BLOCKERS.md) #1–#5 are cleared.**
+until [SECURITY-BLOCKERS.md](SECURITY-BLOCKERS.md) #1-#5 are cleared.**
 
 ## Trust model
 TLS protects transport; **ed25519 signatures protect payloads** (manifests, licenses). A box trusts

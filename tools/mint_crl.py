@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OFFLINE CRL minter — sign a licence revocation list.
+"""OFFLINE CRL minter - sign a licence revocation list.
 
 ⚠️  OFFLINE SIGNING MACHINE ONLY. The signed CRL is shipped to installs over the existing update
 channel; each box loads it (default `/netplex/data/license/crl.json`), verifies the signature against
@@ -44,7 +44,7 @@ def main() -> None:
             revoked += [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
     revoked = sorted(set(revoked))
     if not revoked:
-        raise SystemExit("refusing to mint an empty CRL — pass --revoke / --revoke-file")
+        raise SystemExit("refusing to mint an empty CRL - pass --revoke / --revoke-file")
 
     seed = base64.b64decode(open(args.key).read().strip())
     sk = Ed25519PrivateKey.from_private_bytes(seed)

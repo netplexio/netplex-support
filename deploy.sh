@@ -4,13 +4,13 @@
 #   defaults: user@host = ${DEPLOY_TARGET:-ubuntu@168.138.30.115}, port = ${PORT:-18099}
 # Clones (or pulls) this repo on the remote and runs it via docker compose.
 # Mirrors netplex-rendezvous/deploy.sh's shape. Also host-networked like rendezvous
-# (see docker-compose.yml for why — bridge NAT floats the peer IP Caddy's
+# (see docker-compose.yml for why - bridge NAT floats the peer IP Caddy's
 # X-Forwarded-For trust needs to be stable), but binds 127.0.0.1 only, never 0.0.0.0.
 #
-# REQUIRED on the remote before first run — the container is fail-closed without them:
+# REQUIRED on the remote before first run - the container is fail-closed without them:
 #   FORWARD_INTAKE_TOKENS, ADMIN_API_TOKENS   (openssl rand -base64 32 each)
 # Put them in the remote checkout's .env. This script does NOT generate, transmit, or
-# store any secret itself — nor the license/signing keys (those are never generated
+# store any secret itself - nor the license/signing keys (those are never generated
 # here at all; see docs/KEY-GENERATION-RUNBOOK.md).
 set -euo pipefail
 TARGET="${1:-${DEPLOY_TARGET:-ubuntu@168.138.30.115}}"
@@ -36,4 +36,4 @@ else
 fi
 curl -sf "http://127.0.0.1:${PORT}/health" && echo "  <- health OK on :$PORT" || { echo "health FAILED"; exit 1; }
 REMOTE
-echo "[deploy] done — service should answer on 127.0.0.1:$PORT/health on the target"
+echo "[deploy] done - service should answer on 127.0.0.1:$PORT/health on the target"

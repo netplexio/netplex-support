@@ -23,7 +23,7 @@ async def engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    import app.models  # noqa: F401 — register tables
+    import app.models  # noqa: F401 - register tables
 
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -70,7 +70,7 @@ FORWARD_HEADERS = {"Authorization": f"Bearer {TEST_FORWARD_TOKEN}"}
 TEST_ADMIN_TOKEN = "test-admin-token"
 ADMIN_HEADERS = {"Authorization": f"Bearer {TEST_ADMIN_TOKEN}"}
 
-# /diagnostics/email is authenticated (fail-closed) — P3 tickets chain, 2026-07-28.
+# /diagnostics/email is authenticated (fail-closed) - P3 tickets chain, 2026-07-28.
 # Same pattern as FORWARD_INTAKE_TOKENS/ADMIN_API_TOKENS above.
 TEST_EMAIL_TOKEN = "test-email-token"
 EMAIL_HEADERS = {"Authorization": f"Bearer {TEST_EMAIL_TOKEN}"}

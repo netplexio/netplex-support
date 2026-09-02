@@ -3,28 +3,28 @@ services:
     build: .
     # Host networking. Bridge networking was tried first and reverted (2026-07-27):
     # Caddy (host-networked) connects via 127.0.0.1, but Docker's bridge NAT means the
-    # container actually sees the peer as the bridge gateway IP (e.g. 172.x.0.1) — a
-    # value that floats across network recreation — not 127.0.0.1. TRUSTED_PROXIES
+    # container actually sees the peer as the bridge gateway IP (e.g. 172.x.0.1) - a
+    # value that floats across network recreation - not 127.0.0.1. TRUSTED_PROXIES
     # below would then never match live traffic, silently defeating the trusted-proxy
     # fix in app/auth.py and collapsing the /diagnostics/web rate limiter back into one
     # shared bucket. Host networking (matching netplex-rendezvous) makes Caddy's real,
-    # stable loopback address the actual peer — no NAT, nothing to float. uvicorn binds
+    # stable loopback address the actual peer - no NAT, nothing to float. uvicorn binds
     # 127.0.0.1 explicitly (NOT 0.0.0.0) so the service stays reachable only via Caddy,
-    # never directly from the internet — unlike rendezvous, which intentionally also
+    # never directly from the internet - unlike rendezvous, which intentionally also
     # listens on 0.0.0.0 for its own reasons (STUN/direct UDP), this is a plain HTTP API
     # with no such need.
     network_mode: host
     command: ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "${PORT_HOST:-18099}"]
     environment:
       # Dev-fallback SQLite, persisted via the bind-mounted ./data (see volumes:).
-      # Swap for a real Postgres DATABASE_URL when the ticket volume warrants it —
+      # Swap for a real Postgres DATABASE_URL when the ticket volume warrants it -
       # nothing here is dev-shaped by hardcoding, only by the default.
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./data/netplex_support.db}
       # Caddy always connects from localhost inside this VM; trust its X-Forwarded-For
       # for the /diagnostics/web anti-abuse rate limiter (app/auth.py:client_ip). Never
       # widen this beyond the proxy's real address.
       - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.1}
-      # ── SECURITY — REQUIRED. Fail-closed without them (same pattern as
+      # ── SECURITY - REQUIRED. Fail-closed without them (same pattern as
       # netplex-rendezvous's RENDEZVOUS_AUTH_TOKEN). Generate each with:
       #   openssl rand -base64 32
       # /diagnostics/forward returns 503 until FORWARD_INTAKE_TOKENS is set;
@@ -37,19 +37,19 @@ services:
       # app/config.py read EMAIL_INTAKE_SECRETS from an environment the container never
       # received: setting it in .env changed nothing and the route answered 503 "email
       # intake is not configured" on the deployed box no matter what. Left unset here
-      # (no `:?`) because email intake is genuinely optional — the route stays disabled
+      # (no `:?`) because email intake is genuinely optional - the route stays disabled
       # until a secret is supplied, which is the documented fail-closed behaviour.
       - EMAIL_INTAKE_SECRETS=${EMAIL_INTAKE_SECRETS:-}
       # Public keys for the license/release subsystems. The PRIVATE keys never touch
-      # this server — they are generated + kept OFFLINE (docs/KEY-GENERATION-RUNBOOK.md).
+      # this server - they are generated + kept OFFLINE (docs/KEY-GENERATION-RUNBOOK.md).
       # LICENSE_PUBLIC_KEY is set live (2026-07-27, key_id f98ca2703f3ed827). Until
       # SIGNING_PUBLIC_KEY is also set, POST /api/v1/releases/upload rejects every
-      # manifest as "unknown-key" (fail-closed, by design — not a deploy defect); once
+      # manifest as "unknown-key" (fail-closed, by design - not a deploy defect); once
       # Khaled hands over the release-signing .pub file, paste it here and redeploy.
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       - SIGNING_PUBLIC_KEY=${SIGNING_PUBLIC_KEY:-}
       # Optional: a full multi-key trust store (JSON) for rotation/revocation without a
-      # redeploy losing history — takes precedence over the single key above when set.
+      # redeploy losing history - takes precedence over the single key above when set.
       # See KEY-GENERATION-RUNBOOK.md §7-8. Unset by default (single active key only).
       - LICENSE_TRUST_STORE_JSON=${LICENSE_TRUST_STORE_JSON:-}
       - SIGNING_TRUST_STORE_JSON=${SIGNING_TRUST_STORE_JSON:-}
@@ -63,7 +63,7 @@ services:
       # config.py read it, compose never passed it, so the code default was the ONLY
       # value the deployed service could ever have and .env was silently ignored. The
       # defaults below are deliberately identical to config.py's, so this passthrough
-      # changes nothing on its own — it only makes .env able to change it.
+      # changes nothing on its own - it only makes .env able to change it.
       #
       # Browser origins allowed to read a response from the public /diagnostics/web
       # routes. Empty string disables CORS entirely.
@@ -73,7 +73,7 @@ services:
       # Hard cap on any JSON API request body (app/main.py's _BodySizeLimitASGI).
       - MAX_REQUEST_BODY_BYTES=${MAX_REQUEST_BODY_BYTES:-65536}
       # S3-compatible blob store. app/storage/blobs.py is still a scaffold (its own
-      # TODO), so this is inert today — passed through now so turning it on later is a
+      # TODO), so this is inert today - passed through now so turning it on later is a
       # .env edit and not another "why is my setting ignored?" hunt.
       - OBJECT_STORE_URL=${OBJECT_STORE_URL:-}
     volumes:

@@ -1,6 +1,6 @@
-"""Crypto primitives — sign/verify, key-id, dual-trust, rotation, revocation, tamper.
+"""Crypto primitives - sign/verify, key-id, dual-trust, rotation, revocation, tamper.
 
-Uses EPHEMERAL keypairs generated per test — no private key is ever committed or stored.
+Uses EPHEMERAL keypairs generated per test - no private key is ever committed or stored.
 Run: python -m pytest netplex-support/tests/test_signing.py
 """
 import base64

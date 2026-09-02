@@ -16,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-# severity / tier weights — priority_score = sev × occ × tier (support-system.md §3.3)
+# severity / tier weights - priority_score = sev × occ × tier (support-system.md §3.3)
 SEVERITY_WEIGHT = {"s1_crash": 16, "s2_broken": 8, "s3_degraded": 4, "s4_cosmetic": 2, "s5_idea": 1}
 TIER_WEIGHT = {"master": 5, "enterprise": 5, "team": 4, "architect": 4,
                "professional": 3, "class": 3, "associate": 1}
@@ -106,8 +106,8 @@ class Ticket(Base):
 # ───────────────────────────── async store ─────────────────────────────
 
 async def create_or_dedupe(session: AsyncSession, **fields) -> Ticket:
-    """Create a ticket, or — if `fingerprint` matches an OPEN ticket **from the same
-    source** — bump its occurrences.
+    """Create a ticket, or - if `fingerprint` matches an OPEN ticket **from the same
+    source** - bump its occurrences.
 
     Recomputes priority_score on every (severity, occurrences, tier). Returns the live Ticket.
 
@@ -197,7 +197,7 @@ async def get_ticket_by_origin_local_id(
     session: AsyncSession, origin_local_id: str
 ) -> Optional[Ticket]:
     """T13a: resolve a forwarded report back to the reporting box's own row, keyed on
-    the box-local id it was actually shown — unambiguous even when a box has filed more
+    the box-local id it was actually shown - unambiguous even when a box has filed more
     than one report (unlike the old fingerprint+install_id-only resolution). Most
     recent first, matching create_or_dedupe's own dedupe-then-create ordering."""
     stmt = (
@@ -223,7 +223,7 @@ async def admin_queue(session: AsyncSession, limit: int = 100) -> list[Ticket]:
 # ─────────────────────── release manifests (signed, offline) ───────────────────────
 # Rows here are ALREADY-VERIFIED manifests: app/routers/releases.py's /upload only ever
 # inserts a row after app.crypto.signing.verify_manifest passed against the PUBLIC
-# signing trust store. No private key material is ever stored — manifest_json is the
+# signing trust store. No private key material is ever stored - manifest_json is the
 # full signed manifest exactly as uploaded (including its signature block), so a box
 # fetching it can independently re-verify against its own baked-in trust store too.
 # Append-only (never overwritten in place): every accepted upload is a new row, so

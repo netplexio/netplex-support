@@ -1,4 +1,4 @@
-"""Settings for netplex-support. Keys are loaded from the environment / secret store ONLY —
+"""Settings for netplex-support. Keys are loaded from the environment / secret store ONLY -
 never hard-coded, never committed (see .gitignore)."""
 from __future__ import annotations
 import os
@@ -13,36 +13,36 @@ class Settings:
     GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "netplexio/netplex")
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")  # scoped issues:write
 
-    # Crypto — PUBLIC keys only; PRIVATE keys are never read here (see the "Private keys
-    # intentionally NOT read here" line below — that invariant has NOT changed by adding
+    # Crypto - PUBLIC keys only; PRIVATE keys are never read here (see the "Private keys
+    # intentionally NOT read here" line below - that invariant has NOT changed by adding
     # the two _TRUST_STORE_JSON settings: they still only ever carry public keys + status).
     LICENSE_PUBLIC_KEY: str = os.environ.get("LICENSE_PUBLIC_KEY", "")
     SIGNING_PUBLIC_KEY: str = os.environ.get("SIGNING_PUBLIC_KEY", "")
-    # Optional multi-key trust stores (rotation/revocation — docs/KEY-GENERATION-RUNBOOK.md
+    # Optional multi-key trust stores (rotation/revocation - docs/KEY-GENERATION-RUNBOOK.md
     # §7-8): a JSON list of {"public_key": <b64>, "status": "active"|"next"|"revoked"}.
     # Takes precedence over the single *_PUBLIC_KEY above when set, so a key can be rotated
     # or revoked by redeploying this one value instead of losing history. Unset (the
     # default) → falls back to the single active key above, unchanged behaviour.
     LICENSE_TRUST_STORE_JSON: str = os.environ.get("LICENSE_TRUST_STORE_JSON", "")
     SIGNING_TRUST_STORE_JSON: str = os.environ.get("SIGNING_TRUST_STORE_JSON", "")
-    # Private keys intentionally NOT read here — signing/issuing always happens OFFLINE
+    # Private keys intentionally NOT read here - signing/issuing always happens OFFLINE
     # (tools/sign_release.py, tools/mint_license.py); this server only ever verifies.
 
     # Trusted reverse-proxy peers (IPs/CIDRs, or "*") whose X-Forwarded-For we honour for
     # IP-keyed decisions (the /diagnostics/web rate limit). Default empty = trust NONE, so
     # the raw socket peer is authoritative. Set to our Caddy terminator's address (it always
-    # connects from localhost — "127.0.0.1") when deployed behind it. See app/auth.py.
+    # connects from localhost - "127.0.0.1") when deployed behind it. See app/auth.py.
     TRUSTED_PROXIES: str = os.environ.get("TRUSTED_PROXIES", "")
 
     # P3 tickets chain (2026-07-28): browser origins allowed to call the PUBLIC intake
-    # routes (/diagnostics/web) cross-origin — needed so the netplex.io marketing site's
+    # routes (/diagnostics/web) cross-origin - needed so the netplex.io marketing site's
     # support form can fetch() this endpoint directly instead of only offering a mailto:
     # fallback with no ticket tracking at all. Comma-separated, no wildcard by design (a
     # bearer-gated route staying unreachable to a browser with no token is the real
     # protection; this only widens which origins may READ a response from the public,
-    # already-rate-limited routes — but scoping it to real domains, not "*", keeps intent
+    # already-rate-limited routes - but scoping it to real domains, not "*", keeps intent
     # explicit and auditable). Empty disables CORS entirely (fetch from another origin
-    # fails; server-to-server calls are unaffected — CORS is a browser-only concept).
+    # fails; server-to-server calls are unaffected - CORS is a browser-only concept).
     WEB_INTAKE_CORS_ORIGINS: str = os.environ.get(
         "WEB_INTAKE_CORS_ORIGINS", "https://netplex.io,https://www.netplex.io"
     )

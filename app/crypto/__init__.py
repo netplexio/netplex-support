@@ -1,7 +1,7 @@
 """Crypto primitives for release/license signing & verification.
 
 PUBLIC-key verification is safe to run anywhere (server, box).
-PRIVATE-key signing is OFFLINE only — see tools/sign_release.py and the hard rule in
+PRIVATE-key signing is OFFLINE only - see tools/sign_release.py and the hard rule in
 docs/SECURITY-BLOCKERS.md. No private key is ever stored in this repo or on the server.
 """
 from .signing import (

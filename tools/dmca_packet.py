@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DMCA packet generator — turn a leaked licence token into a ready-to-review takedown notice.
+"""DMCA packet generator - turn a leaked licence token into a ready-to-review takedown notice.
 
 Runs the same signature-verified attribution as attribute_leak.py, then fills
 legal/dmca-takedown-template.md and writes a case folder (notice + the raw attribution JSON) under
@@ -40,9 +40,9 @@ def main() -> None:
 
     attr = _attribute(open(args.token_file).read().strip())
     if not attr.get("buyer_id"):
-        sys.exit("no buyer_id in the token — cannot attribute; is this a licence token?")
+        sys.exit("no buyer_id in the token - cannot attribute; is this a licence token?")
     if not attr.get("ok"):
-        print(f"WARNING: token signature did NOT verify ({attr.get('reason')}) — buyer_id is CLAIMED, "
+        print(f"WARNING: token signature did NOT verify ({attr.get('reason')}) - buyer_id is CLAIMED, "
               f"not proven. State this in the notice.", file=sys.stderr)
 
     fields = {

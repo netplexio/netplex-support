@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Leak attribution — recover the buyer from a leaked licence token, download stamp, or build.
+"""Leak attribution - recover the buyer from a leaked licence token, download stamp, or build.
 
 Two attribution sources, both signature-verified before use:
-  * **Licence token** — carries `buyer_id`/`customer_ref` + `license_id` in its signed payload
+  * **Licence token** - carries `buyer_id`/`customer_ref` + `license_id` in its signed payload
     (§11.9.1 leg ④). Present once a copy has been ACTIVATED.
-  * **Download stamp** (`type: netplex-download-stamp`, §11.10) — injected per download by
+  * **Download stamp** (`type: netplex-download-stamp`, §11.10) - injected per download by
     tools/stamp_download.py at multiple sites in the package tree, so a leaked *pre-activation*
     package still names the account that downloaded it. Signed by a SEPARATE stamp key (attribution,
     not authorization) verified against its own trust set (--stamp-pubkey / NETPLEX_STAMP_PUBKEYS).
@@ -40,13 +40,13 @@ except Exception:  # pragma: no cover
     InvalidSignature = Exception  # type: ignore
 
 # Pinned LICENCE trust keys (mirror backend/shared/license_verify.py::_TRUST_STORE). Attribution
-# only — not an authorisation decision.
+# only - not an authorisation decision.
 TRUST = [
     "jJCebPG7chTyVdNLQ7eCYPqbvjiuWwEahm1ozQyz4pE=",  # 2026 active
     "ZiZR7Qz12/KFTkQfcpvN7m4e9uG9HY7skqCRN3KyrPU=",  # 2027 next
 ]
 
-# Pinned DOWNLOAD-STAMP trust keys (§11.10) — a SEPARATE set from the licence root, because a stamp
+# Pinned DOWNLOAD-STAMP trust keys (§11.10) - a SEPARATE set from the licence root, because a stamp
 # is a tracer, not a lock. Bake the stamp public key here once tools/gen_keypair.py mints it, and/or
 # pass at runtime via --stamp-pubkey / NETPLEX_STAMP_PUBKEYS (comma-separated b64).
 STAMP_TRUST: list[str] = [
@@ -82,7 +82,7 @@ def _attribute(token: str, *, stamp_trust: list[str] | None = None,
     except Exception:  # noqa: BLE001
         return {"ok": False, "reason": "not-json"}
 
-    # Download stamp (§11.10) — verify against the SEPARATE stamp trust set.
+    # Download stamp (§11.10) - verify against the SEPARATE stamp trust set.
     if claims.get("type") == STAMP_TYPE:
         keys = list(stamp_trust or []) + STAMP_TRUST
         ok, why = _verify(claims, keys)

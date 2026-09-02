@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Per-download watermark stamper — the §11.10 safety-pairing for the tier package split.
+"""Per-download watermark stamper - the §11.10 safety-pairing for the tier package split.
 
 Problem it closes (licensing.md §11.10, point 2): the physical Free/Pro/Architect package split
 means a *leaked package* is a clean, anonymous, redistributable build serving every freeloader from
-one leak. `attribute_leak.py --scan` can only recover an embedded *activation token* — a freshly
+one leak. `attribute_leak.py --scan` can only recover an embedded *activation token* - a freshly
 downloaded package has none, so before this tool a leaked pre-activation package was untraceable.
 
 This injects a signed, multi-site **download stamp** into a package tree at fetch time so a leaked
-build names the account that downloaded it. It is *attribution*, not authorization — it never gates
+build names the account that downloaded it. It is *attribution*, not authorization - it never gates
 a feature, so (unlike the licence root) its signing key may live where downloads are served. A
 compromised stamp key only lets an attacker forge *tracers* (misattribute), never mint a licence or
 a release. Hence a SEPARATE stamp keypair, distinct from the licence/release root.
 
-⚠️  The live download portal (`app/routers/releases.py`) is GATED on docs/SECURITY-BLOCKERS.md #1–#5
+⚠️  The live download portal (`app/routers/releases.py`) is GATED on docs/SECURITY-BLOCKERS.md #1-#5
 and every route 501s. This tool is the offline/portal-ready PRIMITIVE: usable now for hand-issued
 per-customer Enterprise/Architect builds, and the call to wire into `releases.py` once distribution
 is un-gated. It does NOT un-gate anything itself.
@@ -144,7 +144,7 @@ def stamp_artifact(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Inject a signed per-download watermark into a package tree.")
-    ap.add_argument("--key", required=True, help="stamp signing key (32-byte ed25519 seed, base64) — a SEPARATE key from the licence/release root")
+    ap.add_argument("--key", required=True, help="stamp signing key (32-byte ed25519 seed, base64) - a SEPARATE key from the licence/release root")
     ap.add_argument("--artifact", required=True, help="path to the UNPACKED package tree to stamp")
     ap.add_argument("--customer", required=True, help="buyer / account id (customer_ref)")
     ap.add_argument("--tier", required=True)

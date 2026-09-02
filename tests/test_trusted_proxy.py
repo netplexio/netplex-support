@@ -3,14 +3,14 @@
 
 A production deploy sits behind Caddy, so the socket peer FastAPI sees is always the
 proxy (127.0.0.1), never the real visitor. These tests lock in: (1) by default (no
-trusted proxy configured) X-Forwarded-For is ignored entirely — a caller can't forge it
+trusted proxy configured) X-Forwarded-For is ignored entirely - a caller can't forge it
 to dodge the rate limit; (2) once the socket peer is a configured trusted proxy,
 X-Forwarded-For IS honoured, but ONLY the RIGHTMOST entry that isn't itself a trusted
-proxy — never the leftmost. Caddy's reverse_proxy APPENDS the address it observed to
+proxy - never the leftmost. Caddy's reverse_proxy APPENDS the address it observed to
 any existing X-Forwarded-For rather than replacing it, so a caller can freely prepend
 whatever value it likes; only the trailing, proxy-added entry is trustworthy. (An
-earlier version of this function — and netplex-rendezvous's client_ip(), which this was
-ported from — took the leftmost entry instead; live-verified wrong against this
+earlier version of this function - and netplex-rendezvous's client_ip(), which this was
+ported from - took the leftmost entry instead; live-verified wrong against this
 deploy's real Caddy on 2026-07-27 before being fixed here.)
 
 httpx's ASGITransport reports the socket peer as ("127.0.0.1", 123) for every test
@@ -26,7 +26,7 @@ pytestmark = pytest.mark.asyncio
 
 async def test_xff_ignored_when_no_trusted_proxy_configured(client, reset_rate_limit):
     """Default (TRUSTED_PROXIES unset): a forged X-Forwarded-For does NOT let two
-    "different" visitors dodge the shared rate limit — the socket peer is authoritative."""
+    "different" visitors dodge the shared rate limit - the socket peer is authoritative."""
     from app.config import settings
 
     prev = settings.TRUSTED_PROXIES
@@ -82,7 +82,7 @@ async def test_xff_honoured_when_peer_is_a_trusted_proxy(client, reset_rate_limi
 async def test_xff_forged_leading_hop_cannot_dodge_the_rate_limit(client, reset_rate_limit):
     """The realistic shape: a caller sends its OWN forged X-Forwarded-For, then Caddy
     (a trusted proxy) appends the address it actually observed. Varying the forged
-    leading entry must NOT create new rate-limit buckets — only the trailing,
+    leading entry must NOT create new rate-limit buckets - only the trailing,
     Caddy-added entry may."""
     from app.config import settings
 
@@ -108,7 +108,7 @@ async def test_xff_forged_leading_hop_cannot_dodge_the_rate_limit(client, reset_
 
 async def test_xff_rightmost_untrusted_hop_used_when_chained(client, reset_rate_limit):
     """A multi-hop X-Forwarded-For chain: the RIGHT-most entry that isn't itself a
-    trusted proxy wins — never the left-most (client-forgeable) one."""
+    trusted proxy wins - never the left-most (client-forgeable) one."""
     from app.auth import client_ip
     from app.config import settings
     from starlette.requests import Request
@@ -120,7 +120,7 @@ async def test_xff_rightmost_untrusted_hop_used_when_chained(client, reset_rate_
             "type": "http",
             "client": ("127.0.0.1", 123),
             # "198.51.100.5" is whatever the caller claimed (forgeable); "203.0.113.77"
-            # is what Caddy itself actually observed and appended — only that trailing
+            # is what Caddy itself actually observed and appended - only that trailing
             # entry is trustworthy.
             "headers": [(b"x-forwarded-for", b"198.51.100.5, 203.0.113.77")],
         }

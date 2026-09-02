@@ -1,11 +1,11 @@
-"""T13a (2026-08-30 war-room) — a forwarded report now carries the box's own local
+"""T13a (2026-08-30 war-room) - a forwarded report now carries the box's own local
 ticket id (`origin_local_id`) through to the persisted row, and it's resolvable via a
 dedicated admin lookup, closing the old "only fingerprint + install_id" ambiguity.
 
-API-only by design — no UI surface. This is a backend ticket-forwarding internal
+API-only by design - no UI surface. This is a backend ticket-forwarding internal
 (one server persisting a field on another server's forwarded payload); there is no
 button or page a person clicks to exercise it. Per this org's testing rule, a UI
-Playwright case is required only when the touched code has a UI surface — this repo's
+Playwright case is required only when the touched code has a UI surface - this repo's
 diagnostics/tickets routers don't.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ async def test_forward_persists_origin_local_id(client):
 
 
 async def test_forward_without_origin_local_id_stays_none(client):
-    """Older/unpatched boxes that don't send the field yet must not error — the field
+    """Older/unpatched boxes that don't send the field yet must not error - the field
     is optional, and its absence just means no origin_local_id lookup is possible for
     that row (same as before this fix, not a regression)."""
     c, _ = client
@@ -48,7 +48,7 @@ async def test_forward_without_origin_local_id_stays_none(client):
 
 async def test_lookup_by_origin_local_id_resolves_ambiguous_fingerprint(client):
     """The actual bug this closes: one box (one install_id) files TWO DIFFERENT
-    reports (different fingerprints, so no dedupe merges them) — before T13a, a
+    reports (different fingerprints, so no dedupe merges them) - before T13a, a
     forwarded report could only be resolved back to the reporting box via
     (fingerprint, install_id), so distinguishing "which of this box's several reports
     is this" required scanning every ticket for that install_id by hand. Now the

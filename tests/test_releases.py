@@ -2,10 +2,10 @@
 
 Proves the receiving end of the offline-sign-then-upload workflow (docs/SECURITY-BLOCKERS.md
 #3, docs/KEY-GENERATION-RUNBOOK.md §6): a manifest signed OFFLINE (here, with an EPHEMERAL
-test keypair generated in-process — never committed, never the real production key) is
+test keypair generated in-process - never committed, never the real production key) is
 accepted only if its signature verifies, then served back by channel. Forged signatures,
 unknown key_ids, and revoked key_ids are all rejected. Server-side signing (/publish) stays
-permanently 501 — that invariant must never regress.
+permanently 501 - that invariant must never regress.
 """
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ async def test_forged_signature_rejected(client, _configure_signing_key):
     sk, _ = _configure_signing_key
     signed = sign_manifest(_manifest(), bytes(sk))
     tampered = copy.deepcopy(signed)
-    tampered["version"] = "9.9.9"  # tamper AFTER signing — signature no longer matches
+    tampered["version"] = "9.9.9"  # tamper AFTER signing - signature no longer matches
 
     c, _ = client
     r = await c.post(_UPLOAD_URL, json={"manifest": tampered}, headers=ADMIN_HEADERS)
@@ -155,7 +155,7 @@ async def test_unknown_key_id_rejected(client):
 
 async def test_revoked_key_id_rejected(client):
     """A manifest signed by a key the server's trust store explicitly marks revoked
-    (rotation/revocation — docs/KEY-GENERATION-RUNBOOK.md §8)."""
+    (rotation/revocation - docs/KEY-GENERATION-RUNBOOK.md §8)."""
     import json as _json
 
     from app.config import settings
@@ -177,7 +177,7 @@ async def test_revoked_key_id_rejected(client):
 
 
 async def test_next_status_key_is_accepted_during_rotation_overlap(client):
-    """A 'next' (incoming, not yet promoted to active) key still verifies — the rotation
+    """A 'next' (incoming, not yet promoted to active) key still verifies - the rotation
     overlap window from KEY-GENERATION-RUNBOOK.md §7."""
     import json as _json
 
@@ -211,7 +211,7 @@ async def test_missing_or_invalid_channel_rejected(client, _configure_signing_ke
 
 
 async def test_publish_stays_permanently_gated(client):
-    """The old unconditional 501 on /publish must still be there — server-side signing
+    """The old unconditional 501 on /publish must still be there - server-side signing
     is a permanent architectural boundary, not a temporary block that /upload relaxes."""
     c, _ = client
     r = await c.post(_PUBLISH_URL)

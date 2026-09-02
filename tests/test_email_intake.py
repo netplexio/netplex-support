@@ -1,4 +1,4 @@
-"""Email intake (P3 tickets chain, 2026-07-28) — replaces the previous dead stub
+"""Email intake (P3 tickets chain, 2026-07-28) - replaces the previous dead stub
 (ingest_email_stub raised NotImplementedError and was never even registered as a
 route). Also covers the CORS wiring added so netplex.io's marketing site can call
 the public /diagnostics/web intake cross-origin (item 3 of the same chain).
@@ -6,7 +6,7 @@ the public /diagnostics/web intake cross-origin (item 3 of the same chain).
 Paired API+UI case: the UI half lives in netplex-verification's Playwright spec
 (tests/playwright/specs/tickets-chain-52.spec.ts), which drives netplex.io's real
 support.html form and forwards its network call to a REAL local instance of this
-same app (not a canned mock) — this file is the direct, real-app-code half.
+same app (not a canned mock) - this file is the direct, real-app-code half.
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ async def test_email_intake_rejects_missing_or_wrong_token(client):
 
 async def test_email_intake_creates_real_ticket(client):
     """The real (previously impossible) path: a correctly-authenticated inbound-mail
-    payload creates a genuine ticket, source='email' — the value models.py has always
+    payload creates a genuine ticket, source='email' - the value models.py has always
     documented ("web|email|forward|app") but which had zero callers before this fix."""
     c, TestSession = client
     r = await c.post("/api/v1/diagnostics/email", json={
@@ -75,7 +75,7 @@ async def test_email_intake_creates_real_ticket(client):
 
 async def test_email_intake_rate_limited_per_ip(client, reset_rate_limit):
     """A misconfigured forwarding worker retrying a bounce shouldn't be able to flood
-    ticket creation just because it holds a valid secret — same IP-based ceiling as
+    ticket creation just because it holds a valid secret - same IP-based ceiling as
     /diagnostics/web (WEB_INTAKE_RATE_PER_MIN)."""
     from app.config import settings
 
@@ -96,7 +96,7 @@ async def test_email_intake_rate_limited_per_ip(client, reset_rate_limit):
 # ── CORS (item 3: netplex.io's support form must be able to call /diagnostics/web) ──
 
 async def test_web_intake_cors_allows_netplexio_origin(client):
-    """A browser preflight from the real netplex.io origin must be allowed — without
+    """A browser preflight from the real netplex.io origin must be allowed - without
     this, the marketing site's fetch() to this endpoint is silently blocked by the
     BROWSER regardless of the route's own auth/rate-limit posture, leaving only a
     bare mailto: link with no ticket tracking (the exact gap this chain closes)."""
@@ -113,7 +113,7 @@ async def test_web_intake_cors_allows_netplexio_origin(client):
 
 
 async def test_web_intake_cors_rejects_unrelated_origin(client):
-    """CORS is scoped to REAL, named origins, not '*' — a bearer-gated route staying
+    """CORS is scoped to REAL, named origins, not '*' - a bearer-gated route staying
     unreachable to a browser with no token is the real protection; this just confirms
     the origin allow-list itself is not accidentally wide open."""
     c, _ = client

@@ -1,11 +1,11 @@
 """ed25519 manifest signing + verification (key-id aware, dual-trust, revocation).
 
-Design: docs/SECURITY-BLOCKERS.md gates #1–#3.
+Design: docs/SECURITY-BLOCKERS.md gates #1-#3.
 - A signed manifest carries `signature = {alg, key_id, sig}` (sig over the canonical bytes of the
   manifest WITHOUT its signature field).
 - A box ships a baked-in **trust store**: key_id → {public_key, status} where status ∈
   {active, next, revoked}. Verification accepts active/next, rejects revoked/unknown.
-- key_id = first 16 hex of sha256(public_key_bytes) — stable, lets manifests name their signer
+- key_id = first 16 hex of sha256(public_key_bytes) - stable, lets manifests name their signer
   and lets us rotate (add a `next` key) and revoke without bricking boxes.
 
 Only `verify_manifest` (public-key) is used server/box side. Signing needs the private key and is
@@ -93,12 +93,12 @@ class TrustStore:
 
 def trust_store_from_settings(trust_store_json: str, single_public_key: str) -> TrustStore:
     """Build a TrustStore the way every settings-backed caller in this service does it:
-    prefer a full multi-key JSON trust store (rotation/revocation — KEY-GENERATION-
+    prefer a full multi-key JSON trust store (rotation/revocation - KEY-GENERATION-
     RUNBOOK.md §7-8) when configured, else fall back to a single key treated as
     `status: "active"`. Both unset → an empty store (verification always fails closed
     with reason "unknown-key", never silently "open"). Takes plain strings (not the
     `settings` object) so it stays a pure crypto-module function with no app.config
-    import — callers pass `settings.X_TRUST_STORE_JSON` / `settings.X_PUBLIC_KEY`."""
+    import - callers pass `settings.X_TRUST_STORE_JSON` / `settings.X_PUBLIC_KEY`."""
     raw = (trust_store_json or "").strip()
     if raw:
         try:

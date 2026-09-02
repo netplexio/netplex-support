@@ -1,4 +1,4 @@
-"""Ticket / triage subsystem — a legacy INTAKE, not the ticket authority.
+"""Ticket / triage subsystem - a legacy INTAKE, not the ticket authority.
 
 This docstring used to say "the authoritative ticket store (source of truth)". That was
 decided against on 2026-08-30 (Wave 18.6 T13): **netplex-control owns ticket identity**,
@@ -11,12 +11,12 @@ to the box (the heartbeat response's `ticket_updates`), and the only side sittin
 the licence/account/installation/log rows that make a ticket diagnosable.
 
 Two known consequences, fixed 2026-08-30 (rows T13a/T13b in netplex's war-room doc):
-  * `new_ticket_id()` (app/models.py) used to mint `"NPX-" + token_hex(6)` —
+  * `new_ticket_id()` (app/models.py) used to mint `"NPX-" + token_hex(6)` -
     byte-for-byte the same format the box mints for its own LOCAL receipt, from a
     different database. Now mints `"SUP-" + token_hex(6)`: this repo's own ids are
     visually distinguishable from the box-local id (still "NPX-...") at a glance.
   * `ForwardedReport.origin_local_id` now carries the box's own local id through to the
-    `tickets.origin_local_id` column (indexed) — resolve it via
+    `tickets.origin_local_id` column (indexed) - resolve it via
     `app.models.get_ticket_by_origin_local_id`, no longer only by `fingerprint` +
     `install_id`.
 
@@ -59,7 +59,7 @@ class TicketView(BaseModel):
     fixed_in_version: Optional[str] = None
     source: str = "web"
     # T13a: the box's own local ticket id, when the report carried one (forward-sourced
-    # tickets only — web/email intake has no box to attribute).
+    # tickets only - web/email intake has no box to attribute).
     origin_local_id: Optional[str] = None
     # §5.3 (2026-07-28): previously MISSING here entirely - a bundle/attachment could
     # be persisted on the row (models.py) but was invisible through every admin-facing
@@ -93,7 +93,7 @@ class TicketView(BaseModel):
 
 @router.get("/admin/queue", dependencies=[Depends(require_admin)])
 async def triage_queue(limit: int = 100, session: AsyncSession = Depends(get_session)):
-    """Admin triage queue — open tickets ordered by priority_score desc.
+    """Admin triage queue - open tickets ordered by priority_score desc.
 
     Operator-only: gated on ADMIN_API_TOKENS (fail-closed). Previously this had only a
     `TODO: admin auth` and handed the full triage queue to any anonymous caller (W15.4)."""
@@ -110,7 +110,7 @@ async def get_ticket_by_origin_route(
     origin_local_id: str, session: AsyncSession = Depends(get_session)
 ):
     """T13a: resolve a forwarded report back to the reporting box's own row by the
-    box-local id it was actually shown — the unambiguous lookup that replaces the old
+    box-local id it was actually shown - the unambiguous lookup that replaces the old
     fingerprint+install_id-only resolution. Admin-only, same posture as the triage
     queue: this is operational detail, not a public surface."""
     t = await get_ticket_by_origin_local_id(session, origin_local_id)

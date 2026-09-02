@@ -2,8 +2,8 @@
 
 Mounts the receiving-end subsystems. Diagnostics + tickets + license-verify/register +
 release manifest-upload/serve are all live. Server-side SIGNING (releases.py's /publish,
-licensing.py's /issue) stays PERMANENTLY 501 — this server must never hold a private
-signing/license key (docs/SECURITY-BLOCKERS.md #3, key custody) — that boundary does not
+licensing.py's /issue) stays PERMANENTLY 501 - this server must never hold a private
+signing/license key (docs/SECURITY-BLOCKERS.md #3, key custody) - that boundary does not
 move regardless of what else is built around it. init_db() runs on startup via the lifespan.
 """
 from __future__ import annotations
@@ -130,7 +130,7 @@ class _BodySizeLimitASGI:
         from app.routers.diagnostics import ATTACHMENT_ROUTE_PATH
 
         if path == ATTACHMENT_ROUTE_PATH:
-            # base64 overhead (~1.37x) on top of MAX_BLOB_BYTES, plus JSON framing —
+            # base64 overhead (~1.37x) on top of MAX_BLOB_BYTES, plus JSON framing -
             # generous but still bounded, never unlimited.
             return int(settings.MAX_BLOB_BYTES * 2)
         return settings.MAX_REQUEST_BODY_BYTES

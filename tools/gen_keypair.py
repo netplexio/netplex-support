@@ -6,8 +6,8 @@ The private key it writes must NEVER touch the server, CI, or any shared host. B
 two encrypted offline media in separate locations (escrow).
 
 Outputs:
-  <name>.key   — 32-byte ed25519 seed, base64 (PRIVATE — keep offline, chmod 600)
-  <name>.pub   — public key, base64 (ship this: bake into the installer trust store)
+  <name>.key - 32-byte ed25519 seed, base64 (PRIVATE - keep offline, chmod 600)
+  <name>.pub - public key, base64 (ship this: bake into the installer trust store)
   prints the key_id and a ready-to-bake trust-store entry.
 
 Usage:  python tools/gen_keypair.py netplex-signing-2026
@@ -41,7 +41,7 @@ def main() -> None:
         f.write(pub_b64 + "\n")
 
     print(f"key_id: {key_id}")
-    print(f"private: {name}.key  (chmod 600 — OFFLINE ONLY, back up to 2 encrypted media)")
+    print(f"private: {name}.key  (chmod 600 - OFFLINE ONLY, back up to 2 encrypted media)")
     print(f"public:  {name}.pub")
     print("\nTrust-store entry to bake into the installer (status: active | next):")
     print(json.dumps({"public_key": pub_b64, "status": "active"}, indent=2))

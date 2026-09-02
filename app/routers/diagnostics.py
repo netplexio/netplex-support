@@ -1,9 +1,9 @@
-"""Diagnostics destination — receives OPT-IN, already-redacted reports.
+"""Diagnostics destination - receives OPT-IN, already-redacted reports.
 
 Three live intakes:
-- POST /forward     — a box forwards an (already-redacted) report → ticket, source="forward".
-- POST /web         — PUBLIC website-submitted report → ticket, source="web" (IP rate-limited).
-- POST /attachment  — upload one blob (screenshot, or any future binary attachment) →
+- POST /forward - a box forwards an (already-redacted) report → ticket, source="forward".
+- POST /web - PUBLIC website-submitted report → ticket, source="web" (IP rate-limited).
+- POST /attachment - upload one blob (screenshot, or any future binary attachment) →
   content-addressed descriptor, referenced by a later /forward's `attachment_refs`.
 
 Reports are expected pre-redacted on the box (local-only privacy); size/type are re-validated as
@@ -59,7 +59,7 @@ class ForwardedReport(BaseModel):
     body: str = Field(default="", max_length=10000)
     severity: str = Field(default="s2_broken", max_length=16)
     platform_version: str = Field(default="", max_length=64)
-    # tier/identity — present only for identified (paid) tiers
+    # tier/identity - present only for identified (paid) tiers
     reporter_tier: str = Field(default="associate", max_length=32)
     install_id: Optional[str] = Field(default=None, max_length=128)
     # T13a (2026-08-30 war-room): the box's OWN local ticket id (its "NPX-..." receipt,
@@ -82,7 +82,7 @@ class ForwardedReport(BaseModel):
 
 
 class WebReport(BaseModel):
-    """Website intake — anonymous by default; a contact is optional and self-asserted."""
+    """Website intake - anonymous by default; a contact is optional and self-asserted."""
     kind: Literal["crash", "bug", "feature", "license"] = "bug"
     fingerprint: Optional[str] = Field(default=None, max_length=128)
     title: str = Field(max_length=200)
@@ -224,11 +224,11 @@ async def receive_web(
     report: WebReport, request: Request, session: AsyncSession = Depends(get_session)
 ):
     """PUBLIC website intake → create/dedupe a ticket (source=web). IP rate-limited
-    (trusted-proxy-aware — see app/auth.py:client_ip)."""
+    (trusted-proxy-aware - see app/auth.py:client_ip)."""
     ip = client_ip(request)
     limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
     if not rate_ok(f"web:{ip}", limit):
-        raise HTTPException(429, "rate limit exceeded — slow down")
+        raise HTTPException(429, "rate limit exceeded - slow down")
 
     ticket = await create_or_dedupe(
         session,
@@ -300,7 +300,7 @@ async def receive_email(
     ip = client_ip(request)
     limit = max(int(getattr(settings, "WEB_INTAKE_RATE_PER_MIN", 10)), 1)
     if not rate_ok(f"email:{ip}", limit):
-        raise HTTPException(429, "rate limit exceeded — slow down")
+        raise HTTPException(429, "rate limit exceeded - slow down")
 
     ticket = await create_or_dedupe(
         session,

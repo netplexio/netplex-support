@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""OFFLINE licence minter — signs a netplex licence token with the private licence key.
+"""OFFLINE licence minter - signs a netplex licence token with the private licence key.
 
 ⚠️  RUN THIS ON THE OFFLINE / AIR-GAPPED SIGNING MACHINE ONLY. The private seed must never touch the
 server, CI, or any shared host (docs/SECURITY-BLOCKERS.md gate #3).
 
 Produces the canonical signed **manifest** the box verifies with its pinned trust store
-(netplex `backend/shared/license_verify.py`) — byte-for-byte compatible with
+(netplex `backend/shared/license_verify.py`) - byte-for-byte compatible with
 `app/crypto/signing.py::canonical_bytes` so either PyNaCl or `cryptography` can sign/verify.
 
 Token shape:
@@ -44,7 +44,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Mint a signed netplex licence token (offline).")
     ap.add_argument("--key", required=True, help="base64 32-byte ed25519 private seed file")
     ap.add_argument("--tier", required=True)
-    ap.add_argument("--buyer-id", required=True, help="buyer/customer id (attribution — leg ④)")
+    ap.add_argument("--buyer-id", required=True, help="buyer/customer id (attribution - leg ④)")
     ap.add_argument("--customer-ref", default=None, help="defaults to --buyer-id")
     ap.add_argument("--license-id", default=None, help="defaults to lic-<8 hex of buyer_id>")
     ap.add_argument("--machine", default="any",
@@ -52,8 +52,8 @@ def main() -> None:
                          "get_hardware_fingerprint() / the air-gap request bundle's 'fingerprint'.")
     ap.add_argument("--allow-floating", action="store_true",
                     help="signed permission for a node-locked token to run on ANY box (CI/eval). Only "
-                         "honoured because it is inside the signature — an env var can't set it.")
-    ap.add_argument("--entitlements", default=None, help="path to a JSON caps dict (signed caps — leg ②)")
+                         "honoured because it is inside the signature - an env var can't set it.")
+    ap.add_argument("--entitlements", default=None, help="path to a JSON caps dict (signed caps - leg ②)")
     grp = ap.add_mutually_exclusive_group()
     grp.add_argument("--days", type=int, default=365, help="validity in days")
     grp.add_argument("--perpetual", action="store_true", help="never expires (expires_at=null)")
@@ -90,7 +90,7 @@ def main() -> None:
     entitlements = {}
     if args.entitlements:
         entitlements = json.load(open(args.entitlements))
-        # features may be a set in source; JSON carries a list — the box normalises back to a set.
+        # features may be a set in source; JSON carries a list - the box normalises back to a set.
         if isinstance(entitlements.get("features"), (set, tuple)):
             entitlements["features"] = sorted(entitlements["features"])
 

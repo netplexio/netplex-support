@@ -1,10 +1,10 @@
-"""Wave 18.6 T2 — every setting app/config.py reads must reach the container.
+"""Wave 18.6 T2 - every setting app/config.py reads must reach the container.
 
 WHAT WENT WRONG: `app/config.py` reads `EMAIL_INTAKE_SECRETS` from the environment and
 `app/routers/diagnostics.py::_require_email_auth` returns 503 "email intake is not
 configured" when it is empty. `docker-compose.yml` never passed the variable into the
 container, so on the deployed box the setting was permanently empty and
-`POST /api/v1/diagnostics/email` answered 503 forever — no matter what `.env` said.
+`POST /api/v1/diagnostics/email` answered 503 forever - no matter what `.env` said.
 Setting it "correctly" produced no change and no error message, which is the worst shape
 a configuration bug can take.
 
@@ -27,14 +27,14 @@ CONFIG_PY = os.path.join(REPO_ROOT, "app", "config.py")
 COMPOSE_YML = os.path.join(REPO_ROOT, "docker-compose.yml")
 
 # Settings that are deliberately NOT passed through, with the reason. Empty today. A new
-# entry here needs a real justification in review — the default answer is "add the
+# entry here needs a real justification in review - the default answer is "add the
 # compose line", not "add an exemption".
 INTENTIONALLY_NOT_PASSED: dict[str, str] = {}
 
 
 def _env_names_read_by_config() -> set[str]:
     src = open(CONFIG_PY, encoding="utf-8").read()
-    # os.environ.get("NAME"...) — the name may sit on the next line when the call is
+    # os.environ.get("NAME"...) - the name may sit on the next line when the call is
     # wrapped, so allow whitespace/newlines between the paren and the literal.
     return set(re.findall(r'os\.environ(?:\.get)?[\(\[]\s*"([A-Z0-9_]+)"', src))
 
@@ -49,7 +49,7 @@ def test_config_reads_at_least_the_known_settings():
     patterns no longer match, this test fails loudly instead of the parity test below
     quietly passing on an empty set."""
     read = _env_names_read_by_config()
-    assert len(read) >= 15, f"only found {len(read)} env reads in config.py — regex stale?"
+    assert len(read) >= 15, f"only found {len(read)} env reads in config.py - regex stale?"
     for expected in ("EMAIL_INTAKE_SECRETS", "ADMIN_API_TOKENS", "DATABASE_URL"):
         assert expected in read, f"{expected} not detected in config.py"
 

@@ -1,6 +1,6 @@
 """Object-store interface for screenshot / diagnostic blobs.
 
-Rule: blobs are content-addressed (sha256) and live in object storage ONLY — NEVER git, NEVER the
+Rule: blobs are content-addressed (sha256) and live in object storage ONLY - NEVER git, NEVER the
 relational DB. The ticket row stores only {sha256, url, mime, bytes, redacted}. Screenshots arrive
 already redacted from the box; size/type are re-validated here as defence in depth.
 """

@@ -1,4 +1,4 @@
-"""W15.4 / W15.8 — /api/v1/tickets/admin/queue was an unauthenticated `TODO: admin auth`
+"""W15.4 / W15.8 - /api/v1/tickets/admin/queue was an unauthenticated `TODO: admin auth`
 that handed the full triage queue (every ticket, reporter tiers, contacts) to anyone.
 These tests fail without the fail-closed admin bearer gate.
 """

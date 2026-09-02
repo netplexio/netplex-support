@@ -1,16 +1,16 @@
-"""Release / update authority — the manifest distribution hop.
+"""Release / update authority - the manifest distribution hop.
 
-Server-side SIGNING is PERMANENTLY impossible here — this server must never hold the private
+Server-side SIGNING is PERMANENTLY impossible here - this server must never hold the private
 signing key (docs/SECURITY-BLOCKERS.md #3, key custody). /publish always 501s; that is an
 architectural constant, not a temporary gate.
 
 What IS live: verifying, storing, and serving an ALREADY-SIGNED manifest. Whoever holds the
-offline signing key signs a manifest OFFLINE with tools/sign_release.py (never on this server —
+offline signing key signs a manifest OFFLINE with tools/sign_release.py (never on this server -
 see docs/KEY-GENERATION-RUNBOOK.md), then uploads the signed result via POST /upload. This route
 verifies the signature against the PUBLIC signing trust store (settings.SIGNING_PUBLIC_KEY /
 SIGNING_TRUST_STORE_JSON) and, only if it verifies, stores it. GET /manifest/{channel} serves the
 latest stored manifest for that channel. A box still independently re-verifies against its own
-baked-in trust store before applying anything — this service is the distribution hop, not the
+baked-in trust store before applying anything - this service is the distribution hop, not the
 trust boundary (the box's own verification is).
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/v1/releases", tags=["releases"])
 CHANNELS = {"canary", "beta", "stable", "lts"}
 
 _PUBLISH_GATED = (
-    "publish (server-side signing) is permanently disabled by design — this server never "
+    "publish (server-side signing) is permanently disabled by design - this server never "
     "holds the private signing key (docs/SECURITY-BLOCKERS.md #3). Sign a manifest OFFLINE "
     "via tools/sign_release.py on the air-gapped signing machine, then POST the signed "
     "result to /api/v1/releases/upload"
@@ -63,7 +63,7 @@ class UploadResult(BaseModel):
 @router.get("/manifest/{channel}")
 async def get_manifest(channel: str, session: AsyncSession = Depends(get_session)):
     """Serve the latest UPLOADED (and, at upload time, verified) signed manifest for a
-    channel. Public — a box needs to reach this before it has decided to trust anything;
+    channel. Public - a box needs to reach this before it has decided to trust anything;
     the box's own verification against its baked-in trust store is what actually gates
     whether it applies the manifest."""
     if channel not in CHANNELS:
@@ -79,10 +79,10 @@ async def upload_manifest(req: UploadRequest, session: AsyncSession = Depends(ge
     """Admin-only: accept an ALREADY-SIGNED manifest and, if its signature verifies against
     the PUBLIC signing trust store, store it as the latest manifest for its channel.
 
-    This is the ONLY path a manifest can ever reach this server through — there is no
+    This is the ONLY path a manifest can ever reach this server through - there is no
     server-side signing path (see POST /publish, always 501). Rejects (400) on: missing/
     invalid `channel`, an unparseable manifest, a forged/tampered signature, or a signature
-    from an unknown or revoked key_id — the same verify_manifest() primitive
+    from an unknown or revoked key_id - the same verify_manifest() primitive
     app/crypto/signing.py already ships and tests/test_signing.py already covers."""
     manifest = req.manifest
     if not isinstance(manifest, dict):
@@ -109,6 +109,6 @@ async def upload_manifest(req: UploadRequest, session: AsyncSession = Depends(ge
 
 @router.post("/publish")
 async def publish_release():
-    """Server-side build+sign+publish. PERMANENTLY disabled — see module docstring and
+    """Server-side build+sign+publish. PERMANENTLY disabled - see module docstring and
     docs/SECURITY-BLOCKERS.md #3. Use tools/sign_release.py offline, then POST /upload."""
     raise HTTPException(501, _PUBLISH_GATED)

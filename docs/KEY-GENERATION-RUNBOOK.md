@@ -1,9 +1,9 @@
 # 🔑 Offline key-generation runbook
 
 > **Who:** Khaled (or whoever holds release authority). **Where:** an **air-gapped / offline**
-> machine — never a server, never the shared media host, never CI. **Why:** the private signing &
+> machine - never a server, never the shared media host, never CI. **Why:** the private signing &
 > license keys are the crown jewels; if they leak, an attacker can forge updates/licenses. See
-> [SECURITY-BLOCKERS.md](SECURITY-BLOCKERS.md) gates #1–#3.
+> [SECURITY-BLOCKERS.md](SECURITY-BLOCKERS.md) gates #1-#3.
 >
 > Do this ONCE to bootstrap, then keep the keys offline forever. Signing releases also happens
 > offline (Step 6). The server only ever sees **public** keys and **already-signed** artifacts.
@@ -15,7 +15,7 @@
 1. Use a clean machine with **no network** (pull the cable / disable Wi-Fi). A spare laptop or a
    live-USB Linux session is ideal.
 2. Copy the repo's tools onto it via USB: you only need `app/crypto/` + `tools/` + a Python 3.12
-   with **PyNaCl** installed (`pip install pynacl` — do this on the offline box from a vendored
+   with **PyNaCl** installed (`pip install pynacl` - do this on the offline box from a vendored
    wheel, or install before going offline).
 3. Verify the tools are present: `tools/gen_keypair.py`, `tools/sign_release.py`,
    `app/crypto/signing.py`.
@@ -26,11 +26,11 @@
 python tools/gen_keypair.py netplex-signing-2026
 ```
 Outputs:
-- `netplex-signing-2026.key` — **PRIVATE** (32-byte ed25519 seed, base64, `chmod 600`). **Never leaves the offline machine + escrow.**
-- `netplex-signing-2026.pub` — **PUBLIC** (base64). Safe to ship.
+- `netplex-signing-2026.key` - **PRIVATE** (32-byte ed25519 seed, base64, `chmod 600`). **Never leaves the offline machine + escrow.**
+- `netplex-signing-2026.pub` - **PUBLIC** (base64). Safe to ship.
 - prints the **`key_id`** (e.g. `98f5018062f93851`) and a ready-to-bake trust-store entry.
 
-Write down the `key_id` — it identifies this signer in every manifest.
+Write down the `key_id` - it identifies this signer in every manifest.
 
 ## 2. Generate the LICENSE keypair (separate key for licenses)
 
@@ -61,7 +61,7 @@ The product ships a trust store of public keys. Add an entry per key:
   ]
 }
 ```
-- This file is **baked into the install image** (trust-on-first-install) — it is public, commit it
+- This file is **baked into the install image** (trust-on-first-install) - it is public, commit it
   to the product repo when that wiring is built (tracker item "bake public key into product").
 - `status`: `active` (current), `next` (incoming during rotation), `revoked` (compromised).
 
@@ -85,7 +85,7 @@ The server verifies signatures/licenses with these; it holds **no** private key.
 4. Move **only `signed-manifest.json`** back; publish it (+ artifacts) from `netplex-support`.
 5. Boxes verify it against the baked-in public key before applying.
 
-## 7. Rotation (planned, seamless — no downtime)
+## 7. Rotation (planned, seamless - no downtime)
 
 1. Offline: generate the new keypair (`gen_keypair.py netplex-signing-2027`).
 2. Publish a **trust-update**: a manifest signed by the **current (active)** key that adds the new
@@ -96,7 +96,7 @@ The server verifies signatures/licenses with these; it holds **no** private key.
 
 ## 8. Compromise response (emergency)
 
-1. If a private key leaks: offline, publish a **revocation** — a trust-update signed by a
+1. If a private key leaks: offline, publish a **revocation** - a trust-update signed by a
    *still-trusted* key that sets the bad `key_id` to `status: "revoked"`. Boxes reject anything
    signed by it immediately.
 2. Roll forward to a fresh key per Step 7.

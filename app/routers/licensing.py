@@ -1,4 +1,4 @@
-"""Licensing authority — the source of tier truth.
+"""Licensing authority - the source of tier truth.
 
 VERIFY is live (stateless, PUBLIC key). A license "token" is a JSON string holding a signed dict:
 {tier, expires_at(unix), customer_ref, ..., signature:{alg,key_id,sig}}. We verify the ed25519
@@ -6,13 +6,13 @@ signature against a TrustStore built from settings.LICENSE_PUBLIC_KEY / LICENSE_
 then check expiry.
 
 REGISTER is live too, admin-only: it accepts a token ALREADY signed OFFLINE (by whoever holds the
-private license key, via tools/mint_license.py on an air-gapped machine — see
+private license key, via tools/mint_license.py on an air-gapped machine - see
 docs/KEY-GENERATION-RUNBOOK.md) and, if it verifies, stores it. This is the only way a license
 token ever reaches this server's store.
 
-ISSUE stays 🔴 GATED — it would mean minting tokens with the PRIVATE license key, which this
+ISSUE stays 🔴 GATED - it would mean minting tokens with the PRIVATE license key, which this
 server must never hold (docs/SECURITY-BLOCKERS.md #3, key custody). That is a permanent
-architectural boundary, not a temporary block — REGISTER does not relax it.
+architectural boundary, not a temporary block - REGISTER does not relax it.
 """
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ async def issue_license(req: IssueRequest):
     a token OFFLINE with tools/mint_license.py, then POST it to /api/v1/license/register."""
     raise HTTPException(
         501,
-        "GATED — server-side license issuance is permanently disabled by design (key-custody "
+        "GATED - server-side license issuance is permanently disabled by design (key-custody "
         "rule). Mint a token offline via tools/mint_license.py, then POST it to "
         "/api/v1/license/register",
     )
@@ -143,11 +143,11 @@ async def register_license(
 ):
     """Admin-only: register an ALREADY-SIGNED license token into the store.
 
-    This endpoint NEVER signs anything — it only verifies the presented signature against
+    This endpoint NEVER signs anything - it only verifies the presented signature against
     the PUBLIC license trust store (the same primitive /verify uses) and, if and only if
     that verification passes, persists the token. The token itself must have been produced
     OFFLINE, on the machine that holds the private license key, using tools/mint_license.py
-    (docs/KEY-GENERATION-RUNBOOK.md). Mirrors app/routers/releases.py's /upload — same
+    (docs/KEY-GENERATION-RUNBOOK.md). Mirrors app/routers/releases.py's /upload - same
     custody boundary, same shape."""
     trust = _trust_store()
     try:
@@ -200,7 +200,7 @@ async def get_registered_license(
     customer_ref: str, session: AsyncSession = Depends(get_session)
 ):
     """Admin-only: look up the most recently registered license token for a customer_ref
-    (support-ops lookup — "did we register this customer's license, and with what terms").
+    (support-ops lookup - "did we register this customer's license, and with what terms").
     """
     row = await latest_license_token_for(session, customer_ref)
     if row is None:

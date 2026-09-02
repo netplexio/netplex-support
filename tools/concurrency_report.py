@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Concurrency VISIBILITY — flag one licence appearing on too many machines (§11.9 Layer 5).
+"""Concurrency VISIBILITY - flag one licence appearing on too many machines (§11.9 Layer 5).
 
 SOFT by design: this NEVER revokes or locks anyone. It turns a check-in ledger into a ranked list of
 licences whose distinct-machine count exceeds their purchased seat allowance, for a HUMAN
-(sales/support) to look at — typically at renewal. Auto-locking a paying customer on suspicion costs
+(sales/support) to look at - typically at renewal. Auto-locking a paying customer on suspicion costs
 more than the piracy (their VMs migrate, they reinstall, they run home+work). The calibrated ladder is
 notify-first, throttle-candidate-second, human-review-only for the extreme case.
 
 ⚠️  This is the ready PRIMITIVE. The live cross-machine check-in feed depends on the release/activation
-authority (`app/routers/releases.py`), which is GATED on docs/SECURITY-BLOCKERS.md #1–#5, AND on the
+authority (`app/routers/releases.py`), which is GATED on docs/SECURITY-BLOCKERS.md #1-#5, AND on the
 still-open founder decision about phone-home vs air-gap default (licensing.md §11.9 decision points).
-Air-gapped / free installs never check in and are never in this report — by design.
+Air-gapped / free installs never check in and are never in this report - by design.
 
 Ledger format (JSONL, one check-in per line):
   {"license_id","fingerprint","instance_id","ip_prefix","tier","seats",<ts unix int>:"ts"}
@@ -26,7 +26,7 @@ import sys
 from collections import defaultdict
 
 # Default per-tier seat allowance (distinct machines) when a check-in record carries no explicit
-# `seats`. Individual tiers get 2 (home + work) — matches §11.5b Gap 2. 0 = unlimited (Enterprise).
+# `seats`. Individual tiers get 2 (home + work) - matches §11.5b Gap 2. 0 = unlimited (Enterprise).
 _DEFAULT_SEATS = {
     "free": 1, "associate": 1, "pro": 2, "professional": 2, "architect": 2,
     "team": 0, "classroom": 0, "class": 0, "enterprise": 0, "master": 0,
@@ -46,10 +46,10 @@ def _severity(distinct: int, seats: int) -> str:
     if distinct <= seats:
         return "ok"
     if distinct <= seats + 2:
-        return "notify"          # small overage — email the customer, self-service deactivation
+        return "notify"          # small overage - email the customer, self-service deactivation
     if distinct <= max(seats * 5, 9):
-        return "review"          # likely sharing — sales/support looks at renewal
-    return "escalate"            # >=~10x — a key posted somewhere; human review, never auto-revoke
+        return "review"          # likely sharing - sales/support looks at renewal
+    return "escalate"            # >=~10x - a key posted somewhere; human review, never auto-revoke
 
 
 def analyze(records: list[dict], *, window_days: int = 30, now: int | None = None) -> list[dict]:
@@ -90,7 +90,7 @@ def analyze(records: list[dict], *, window_days: int = 30, now: int | None = Non
             "license_id": lid, "tier": g["tier"], "seat_allowance": seats,
             "distinct_machines": distinct, "distinct_instances": len(g["instances"]),
             "distinct_ip_prefixes": len(g["ips"]), "severity": sev,
-            "action": "soft/human-review only — never auto-revoke",
+            "action": "soft/human-review only - never auto-revoke",
         })
     order = {"escalate": 0, "review": 1, "notify": 2}
     out.sort(key=lambda x: (order.get(x["severity"], 9), -x["distinct_machines"]))
@@ -124,7 +124,7 @@ def main() -> None:
         print(json.dumps(flags, indent=2))
     else:
         if not flags:
-            print("no over-seat licences — nothing to review")
+            print("no over-seat licences - nothing to review")
         for f in flags:
             print(f"[{f['severity']:>8}] {f['license_id']}  tier={f['tier'] or '?'}  "
                   f"machines={f['distinct_machines']}/{f['seat_allowance'] or '∞'}  "

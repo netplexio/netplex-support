@@ -1,4 +1,4 @@
-# DMCA Takedown / Anti-Circumvention Notice — TEMPLATE
+# DMCA Takedown / Anti-Circumvention Notice - TEMPLATE
 
 > Fillable template used by `tools/dmca_packet.py`, which substitutes the `{{...}}` fields from a
 > leaked-token attribution. **Have counsel review before sending.** The technical attribution names
@@ -10,7 +10,7 @@
 To: {{host_or_registrar}} (designated DMCA agent)
 From: {{rightsholder_name}}, {{rightsholder_contact}}
 Date: {{notice_date}}
-Re: Unauthorized distribution / circumvention of netplex. — {{infringing_url}}
+Re: Unauthorized distribution / circumvention of netplex. - {{infringing_url}}
 
 1. **Copyrighted work.** The netplex. platform software and its licensed distribution, © {{rightsholder_name}}.
 
@@ -21,7 +21,7 @@ Re: Unauthorized distribution / circumvention of netplex. — {{infringing_url}}
    attributable to our records:
    - buyer_id: **{{buyer_id}}**
    - license_id: **{{license_id}}**
-   - signing key_id: **{{key_id}}** — signature verified: **{{signature_verified}}**
+   - signing key_id: **{{key_id}}** - signature verified: **{{signature_verified}}**
    - tier: {{tier}} · issued: {{issued_at}}
    This licence was issued to the above account under our EULA, which prohibits redistribution and
    circumvention (§ Anti-Circumvention). Revocation of this license_id has been issued via CRL.
@@ -41,4 +41,4 @@ Contact: {{rightsholder_contact}}
 
 ---
 *Generated {{notice_date}} by netplex-support/tools/dmca_packet.py from case {{case_id}}. Not legal
-advice — review with counsel before sending.*
+advice - review with counsel before sending.*

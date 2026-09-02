@@ -181,7 +181,7 @@ async def test_malformed_token_rejected(client, _configure_license_key):
 
 
 async def test_issue_stays_permanently_gated(client):
-    """/issue must remain 501 — server-side license minting is a permanent architectural
+    """/issue must remain 501 - server-side license minting is a permanent architectural
     boundary (key custody), not something /register relaxes."""
     c, _ = client
     r = await c.post(_ISSUE_URL, json={"tier": "architect", "customer_ref": "c"})

@@ -16,7 +16,7 @@ from tests.conftest import FORWARD_HEADERS
 # `from shared...`, and `shared` lives one level up at backend/shared. With only the
 # api-gateway path on sys.path the import raised ModuleNotFoundError: No module named
 # 'shared', importorskip swallowed it, and this whole cross-repo contract test had been
-# silently skipping — reporting "1 skipped" rather than "the product→support forwarding
+# silently skipping - reporting "1 skipped" rather than "the product→support forwarding
 # contract is unverified".
 _BACKEND = "/root/netplex/backend"
 for _p in (f"{_BACKEND}/api-gateway", _BACKEND):

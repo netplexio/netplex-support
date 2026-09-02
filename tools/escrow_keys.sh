@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Key escrow — produce a RECOVERABLE, encrypted backup of the licence signing seeds for offline media.
+# Key escrow - produce a RECOVERABLE, encrypted backup of the licence signing seeds for offline media.
 #
 # ⚠️  Run on the offline signing machine. This creates an AES-256 encrypted bundle of the *.key seeds
 # plus a sealed record (key_id + sha256 per seed). It PRINTS a one-time passphrase you MUST record
 # separately from the bundle (write it down; store apart). It VERIFIES the bundle decrypts before
-# finishing. It does NOT delete the plaintext seeds — destroying the last plaintext copy is the human
+# finishing. It does NOT delete the plaintext seeds - destroying the last plaintext copy is the human
 # final step, done only AFTER you've confirmed the passphrase is recorded and the bundle restores.
 #
 # Usage:   escrow_keys.sh <keydir> <out.enc>
@@ -24,7 +24,7 @@ SEEDS=("$KEYDIR"/*.key)
 # Sealed record: key_id (sha256 of the raw pubkey, first 16 hex) + sha256 of each seed file.
 {
   echo "# netplex licence key escrow record"
-  echo "# created for offline media handoff — keep with (but recorded separately from) the bundle"
+  echo "# created for offline media handoff - keep with (but recorded separately from) the bundle"
   for s in "${SEEDS[@]}"; do
     pub="${s%.key}.pub"
     kid="(no .pub)"; [ -f "$pub" ] && kid="$(python3 - "$pub" <<'PY'
@@ -37,7 +37,7 @@ PY
 } > "$RECORD"
 
 # Strong one-time passphrase (printed once; never stored on disk). Passed to openssl via
-# an ENV var, never `-pass pass:` on the command line — argv is world-readable (ps /
+# an ENV var, never `-pass pass:` on the command line - argv is world-readable (ps /
 # /proc/<pid>/cmdline), so `pass:` would leak the passphrase to any local user (F-S5).
 PASS="$(openssl rand -base64 32)"
 export NPX_ESCROW_PASS="$PASS"
@@ -50,7 +50,7 @@ tar -C "$KEYDIR" -czf - $(cd "$KEYDIR" && ls *.key *.pub 2>/dev/null) \
 if openssl enc -d -aes-256-cbc -pbkdf2 -pass env:NPX_ESCROW_PASS -in "$OUT" | tar tz >/dev/null 2>&1; then
   echo "escrow bundle verified (decrypts + lists cleanly)."
 else
-  echo "ERROR: escrow bundle failed to round-trip — NOT safe to rely on. Investigate."; exit 1
+  echo "ERROR: escrow bundle failed to round-trip - NOT safe to rely on. Investigate."; exit 1
 fi
 
 echo
