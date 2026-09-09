@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from app import __version__
 from app.config import settings
@@ -158,3 +159,14 @@ app.include_router(releases.router)
 @app.get("/health")
 async def health():
     return {"service": "netplex-support", "version": __version__, "status": "ok"}
+
+
+# This host is a pure JSON API (diagnostics/tickets/licensing/releases) with no
+# pages meant for a browser or a search index. With no robots.txt at all, Googlebot
+# had no guidance and started GETting API paths it found referenced in netplex.io's
+# client-side fetch() calls (e.g. POST-only /api/v1/diagnostics/web), landing a 405
+# and showing up in Search Console as "Blocked due to other 4xx issue". Disallow the
+# whole host so crawlers stop probing it.
+@app.get("/robots.txt")
+async def robots():
+    return PlainTextResponse("User-agent: *\nDisallow: /\n")
