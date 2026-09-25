@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# commit-msg: rejects any new commit (including a merge commit made with
+# `git merge --no-ff` - commit-msg fires for those too, verified live in the netplex
+# repo) whose message contains an AI attribution line (Khaled 2026-09-25, CLAUDE.md
+# rule #17 in the netplex repo). Old history is deliberately left alone - this only
+# gates commits made from here on. Logged as NPX-1671 in netplex's
+# docs/status/PLATFORM-AUDIT.md.
+#
+# Self-contained (no dependency on netplex's infra/scripts layout) so it can be copied
+# as-is into every repo in the netplexio org.
+set -u
+msgfile="$1"
+msg="$(cat "$msgfile" 2>/dev/null)"
+
+# Case-insensitive. Matches:
+#   - a Co-Authored-By trailer naming Claude / Anthropic / noreply@anthropic.com
+#   - an AI-tool generation credit phrase ("Generated with Claude Code", incl. the
+#     markdown-link form "Generated with [Claude Code](...)")
+if grep -qiE 'co-authored-by:.*(claude|anthropic|noreply@anthropic\.com)' <<< "$msg" \
+    || grep -qiE 'generated with \[?claude code' <<< "$msg"; then
+    echo "[no-ai-attribution] BLOCKED: commit message contains an AI attribution line." >&2
+    echo "[no-ai-attribution] Khaled's decision (2026-09-25): no Co-Authored-By/Generated-with-Claude lines in new commits. Remove the line and re-commit." >&2
+    exit 1
+fi
+exit 0
