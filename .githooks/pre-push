@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# pre-push: second line of defence for the AI-attribution block (Khaled 2026-09-25,
+# CLAUDE.md rule #17 in the netplex repo). commit-msg already blocks this at commit
+# time, but a commit made before the hook was installed elsewhere (another checkout, a
+# rebase, cherry-pick, etc.) could still slip through - catch it here too.
+#
+# Scoped to ONLY commits not already on the remote's main/master, so pre-existing
+# history with an AI attribution line is never rewritten and never blocks a push.
+set -u
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK="$ROOT/.githooks/commit-msg"
+
+while read -r _lref lsha rref rsha; do
+    [[ "$rref" == "refs/heads/main" || "$rref" == "refs/heads/master" ]] || continue
+    [[ "$lsha" =~ ^0+$ ]] && continue   # deleting a remote ref
+
+    range="$rsha..$lsha"
+    if [[ "$rsha" =~ ^0+$ ]]; then
+        range="$lsha"   # new branch/ref: nothing to exclude, check every commit being pushed
+    fi
+    while IFS= read -r csha; do
+        [[ -z "$csha" ]] && continue
+        tmp="$(mktemp)"
+        git log -1 --format=%B "$csha" > "$tmp" 2>/dev/null
+        if ! bash "$CHECK" "$tmp"; then
+            echo "[pre-push] BLOCKED: commit $csha carries an AI attribution line" >&2
+            rm -f "$tmp"
+            exit 1
+        fi
+        rm -f "$tmp"
+    done < <(git rev-list "$range" 2>/dev/null)
+done
+exit 0
