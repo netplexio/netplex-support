@@ -7,10 +7,10 @@ services:
     # value that floats across network recreation - not 127.0.0.1. TRUSTED_PROXIES
     # below would then never match live traffic, silently defeating the trusted-proxy
     # fix in app/auth.py and collapsing the /diagnostics/web rate limiter back into one
-    # shared bucket. Host networking (matching netplex-rendezvous) makes Caddy's real,
+    # shared bucket. Host networking (matching netplex-relay) makes Caddy's real,
     # stable loopback address the actual peer - no NAT, nothing to float. uvicorn binds
     # 127.0.0.1 explicitly (NOT 0.0.0.0) so the service stays reachable only via Caddy,
-    # never directly from the internet - unlike rendezvous, which intentionally also
+    # never directly from the internet - unlike the relay, which intentionally also
     # listens on 0.0.0.0 for its own reasons (STUN/direct UDP), this is a plain HTTP API
     # with no such need.
     network_mode: host
@@ -25,7 +25,7 @@ services:
       # widen this beyond the proxy's real address.
       - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.1}
       # ── SECURITY - REQUIRED. Fail-closed without them (same pattern as
-      # netplex-rendezvous's RENDEZVOUS_AUTH_TOKEN). Generate each with:
+      # netplex-relay's RELAY_AUTH_TOKEN). Generate each with:
       #   openssl rand -base64 32
       # /diagnostics/forward returns 503 until FORWARD_INTAKE_TOKENS is set;
       # /tickets/admin/* returns 503 until ADMIN_API_TOKENS is set. Comma-separate to

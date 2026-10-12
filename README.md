@@ -3,7 +3,7 @@
 > **Crown-jewel repo.** This is the **central, server-side** half of netplex's support &
 > update system. It is **separate from the `netplex` product repo on purpose**: it holds the
 > private signing key and the license-issuing key, which must never live near a repo that
-> self-hosting customers can read. Deploy to **our** cloud only (alongside the rendezvous relay).
+> self-hosting customers can read. Deploy to **our** cloud only (alongside the cluster relay).
 
 **Plain English:** the `netplex` product (on the user's box) is the *transmitting* end. This repo
 is the *receiving* end - where forwarded diagnostics land, where licenses are issued and verified,
@@ -80,7 +80,7 @@ pytest -q
 
 `./deploy.sh` clones/pulls this repo on the remote and runs it via `docker compose`
 (host networking, `uvicorn` bound to `127.0.0.1` only, fronted by the shared Caddy -
-see `docker-compose.yml`). Host networking (like `netplex-rendezvous`, though for a
+see `docker-compose.yml`). Host networking (like `netplex-relay`, though for a
 different reason: bridge NAT would make the peer IP Caddy's `X-Forwarded-For` trust
 depends on float across network recreation, silently breaking `TRUSTED_PROXIES` -
 see the compose file's comment) keeps Caddy's real loopback address the stable,

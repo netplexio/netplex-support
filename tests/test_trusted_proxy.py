@@ -9,7 +9,7 @@ X-Forwarded-For IS honoured, but ONLY the RIGHTMOST entry that isn't itself a tr
 proxy - never the leftmost. Caddy's reverse_proxy APPENDS the address it observed to
 any existing X-Forwarded-For rather than replacing it, so a caller can freely prepend
 whatever value it likes; only the trailing, proxy-added entry is trustworthy. (An
-earlier version of this function - and netplex-rendezvous's client_ip(), which this was
+earlier version of this function - and netplex-relay's client_ip(), which this was
 ported from - took the leftmost entry instead; live-verified wrong against this
 deploy's real Caddy on 2026-07-27 before being fixed here.)
 

@@ -30,7 +30,7 @@ def require_admin(request: Request) -> None:
     _require_bearer(request, settings.ADMIN_API_TOKENS, "admin API")
 
 
-# ── trusted-proxy client-IP resolution (mirrors netplex-rendezvous's app/security.py
+# ── trusted-proxy client-IP resolution (mirrors netplex-relay's app/security.py
 # client_ip() fix, F-R5) ──
 #
 # A production deploy always sits behind our Caddy TLS terminator, so the socket peer
@@ -85,7 +85,7 @@ def client_ip(request: Request) -> str:
     rightmost entries are the ones OUR infrastructure actually added - the leftmost
     entry is whatever the original caller sent us unauthenticated and can freely forge
     before ever reaching Caddy. Taking the first (leftmost) entry - as an earlier
-    version of this function, and netplex-rendezvous's client_ip(), both did - trusts
+    version of this function, and netplex-relay's client_ip(), both did - trusts
     exactly that forgeable value; live-verified against this deploy's real Caddy (2026-
     07-27): a request carrying a forged X-Forwarded-For arrives with Caddy's own
     observed peer appended AFTER it, so only the rightmost-non-trusted-hop walk is

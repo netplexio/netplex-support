@@ -83,7 +83,7 @@ class _BodySizeLimitASGI:
     fastapi.HTTPException(413) from inside receive(): FastAPI's own routing.py
     explicitly re-raises an HTTPException raised during body-parsing unchanged
     (documented in its own source as a supported pattern for exactly this), rather
-    than swallowing it into a generic 400. Same proven fix as netplex-rendezvous's
+    than swallowing it into a generic 400. Same proven fix as netplex-relay's
     2026-07-27 P1 (identical vulnerability class, same root cause: a client-declared
     Content-Length is the only thing FastAPI/Starlette will ever check on their own).
     """
