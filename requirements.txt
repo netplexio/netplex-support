@@ -1,7 +1,9 @@
+# Loose ranges (what we want). The build installs requirements.lock (exact pins, NPX-2906).
+# Relock: install these on linux/arm64 in a throwaway container, pip freeze > requirements.lock
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2.6
-sqlalchemy>=2.0
+sqlalchemy[asyncio]>=2.0
 # async postgres driver (production); sqlite+aiosqlite is the dev fallback
 asyncpg>=0.29
 aiosqlite>=0.19
