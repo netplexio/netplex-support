@@ -156,6 +156,12 @@ app.include_router(licensing.router)
 app.include_router(releases.router)
 
 
+@app.get("/", include_in_schema=False)
+async def home():
+    # NPX-2833: bare host used to 404 and looked "down".
+    return PlainTextResponse("netplex support - running", headers={"X-Robots-Tag": "noindex"})
+
+
 @app.get("/health")
 async def health():
     return {"service": "netplex-support", "version": __version__, "status": "ok"}
