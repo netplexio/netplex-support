@@ -23,3 +23,13 @@ async def test_diagnostics_web_get_is_405_not_indexable_content(client):
     c, _ = client
     resp = await c.get("/api/v1/diagnostics/web")
     assert resp.status_code == 405
+
+
+@pytest.mark.asyncio
+async def test_home_says_running_noindex(client):
+    # NPX-2833
+    c, _ = client
+    resp = await c.get("/")
+    assert resp.status_code == 200
+    assert "netplex support" in resp.text and "running" in resp.text
+    assert resp.headers["x-robots-tag"] == "noindex"
